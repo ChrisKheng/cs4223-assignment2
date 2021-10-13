@@ -9,5 +9,7 @@ go build .
 
 To run the simulator:
 ```
-coherence protocol input_file cache_size associativity block_size
+./coherence
 ```
+
+See the usage output of the simulator for the necessary arguments to provide.
