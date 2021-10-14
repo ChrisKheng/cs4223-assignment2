@@ -3,15 +3,30 @@ package main
 import (
 	"fmt"
 	"os"
+
+	"github.com/chriskheng/cs4223-assignment2/coherence/dragon"
+	"github.com/chriskheng/cs4223-assignment2/coherence/mesi"
+	"github.com/chriskheng/cs4223-assignment2/coherence/parser"
+	"github.com/chriskheng/cs4223-assignment2/coherence/simulator"
 )
 
 func main() {
-	parser := Parser{}
-	err := parser.Parse()
+	inputParser := parser.InputParser{}
+	err := inputParser.Parse()
 
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		fmt.Fprintln(os.Stderr, "")
-		parser.PrintUsage()
+		inputParser.PrintUsage()
+		return
 	}
+
+	var sim simulator.Simulator
+	if inputParser.Protocol == parser.Mesi {
+		sim = mesi.NewMesiSimulator(4, inputParser.InputFileName, inputParser.CacheSize, inputParser.CacheAssociativity, inputParser.CacheBlockSize)
+	} else {
+		sim = dragon.NewDragonSimulator(4, inputParser.InputFileName, inputParser.CacheSize, inputParser.CacheAssociativity, inputParser.CacheBlockSize)
+	}
+
+	sim.Run()
 }
