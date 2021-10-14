@@ -18,9 +18,3 @@ func NewMesiSimulator(numCores int, inputFilePrefix string, cacheSize int, assoc
 
 	return &MesiSimulator{&simulator.BaseSimulator{Cores: cores}}
 }
-
-func (s *MesiSimulator) Run() {
-	for i := 0; i < len(s.Cores); i++ {
-		s.Cores[i].Execute()
-	}
-}
