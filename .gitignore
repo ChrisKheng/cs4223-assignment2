@@ -1,1 +1,6 @@
+.DS_Store
+.vscode
+
+benchmarks
 coherence/coherence
+out.txt

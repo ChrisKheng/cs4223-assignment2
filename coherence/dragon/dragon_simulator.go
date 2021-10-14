@@ -18,9 +18,3 @@ func NewDragonSimulator(numCores int, inputFilePrefix string, cacheSize int, ass
 
 	return &DragonSimulator{&simulator.BaseSimulator{Cores: cores}}
 }
-
-func (s *DragonSimulator) Run() {
-	for i := 0; i < len(s.Cores); i++ {
-		s.Cores[i].Execute()
-	}
-}
