@@ -1,6 +1,8 @@
 package simulator
 
 import (
+	"time"
+
 	"github.com/chriskheng/cs4223-assignment2/coherence/components/bus"
 	"github.com/chriskheng/cs4223-assignment2/coherence/components/core"
 	"github.com/chriskheng/cs4223-assignment2/coherence/components/memory"
@@ -22,6 +24,7 @@ func NewBaseSimulator(cores []*core.Core, bus *bus.Bus, memory *memory.Memory) *
 }
 
 func (s *BaseSimulator) Run() {
+	start := time.Now()
 	for !s.isAllCoresDone() {
 		for i := 0; i < len(s.cores); i++ {
 			s.cores[i].Execute()
@@ -30,12 +33,13 @@ func (s *BaseSimulator) Run() {
 		s.bus.Execute()
 		s.memory.Execute()
 	}
+	elapsed := time.Since(start)
 
 	coreStats := []core.CoreStats{}
 	for i := range s.cores {
 		coreStats = append(coreStats, s.cores[i].GetStatistics())
 	}
-	stats.PrintStatistics(coreStats)
+	stats.PrintStatistics(elapsed, coreStats)
 }
 
 func (s *BaseSimulator) isAllCoresDone() bool {
