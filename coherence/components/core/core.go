@@ -12,7 +12,7 @@ import (
 )
 
 type Core struct {
-	cache   cache.Cache
+	cache   cache.CacheController
 	reader  *bufio.Reader
 	index   int
 	state   CoreState
@@ -45,12 +45,12 @@ const (
 	OthersOp = "2"
 )
 
-func NewCore(index int, inputFilePrefix string, cache cache.Cache) Core {
+func NewCore(index int, inputFilePrefix string, cache cache.CacheController) *Core {
 	f, err := os.Open(fmt.Sprintf("%s_%d.data", inputFilePrefix, index))
 	utils.Check(err)
 
 	reader := bufio.NewReader(f)
-	return Core{cache: cache, reader: reader, index: index, state: Ready}
+	return &Core{cache: cache, reader: reader, index: index, state: Ready}
 }
 
 func (core *Core) Execute() {

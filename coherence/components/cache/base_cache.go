@@ -1,12 +1,16 @@
 package cache
 
-import "github.com/chriskheng/cs4223-assignment2/coherence/components/bus"
+import (
+	"github.com/chriskheng/cs4223-assignment2/coherence/components/bus"
+	"github.com/chriskheng/cs4223-assignment2/coherence/components/xact"
+)
 
 type BaseCacheController struct {
-	bus               bus.Bus
-	cacheDs           CacheDs
-	state             CacheControllerState
-	onRequestComplete func()
+	bus                     *bus.Bus
+	cacheDs                 Cache
+	state                   CacheControllerState
+	onClientRequestComplete func()
+	currentTransaction      xact.Transaction
 }
 
 type CacheControllerState int
@@ -15,35 +19,30 @@ const (
 	Ready CacheControllerState = iota
 	CacheHit
 	CacheMiss
+	WaitForBus
+	WaitForPropagation
 )
 
-func NewBaseCache(blockSize, associativity, cacheSize int) *BaseCacheController {
+func NewBaseCache(bus *bus.Bus, blockSize, associativity, cacheSize int) *BaseCacheController {
+	// TODO: Register bus snooping callback here by calling bus.RegisterSnoopingCallBack
 	return &BaseCacheController{
+		bus:     bus,
 		cacheDs: NewCacheDs(blockSize, associativity, cacheSize),
 	}
 }
 
 func (c *BaseCacheController) Execute() {
-	if c.state == CacheHit {
-		c.onRequestComplete()
+	switch c.state {
+	case CacheHit:
+		c.onClientRequestComplete()
 		c.state = Ready
-	} else if c.state == CacheMiss {
-		// TODO: Get access to bus
-		c.onRequestComplete()
-		c.state = Ready
-	}
-	c.onRequestComplete = nil
-}
-
-func (c *BaseCacheController) RequestRead(address uint32, callback func()) {
-	c.onRequestComplete = callback
-	if c.cacheDs.Contain(address) {
-		c.state = CacheHit
-	} else {
-		c.state = CacheMiss
+	case CacheMiss:
+		c.bus.RequestAccess(c.OnBusAccessGranted)
+		c.state = WaitForBus
 	}
 }
 
-func (c *BaseCacheController) RequestWrite(address uint32, callback func()) {
-
+func (c *BaseCacheController) OnBusAccessGranted() xact.Transaction {
+	c.state = WaitForPropagation
+	return c.currentTransaction
 }

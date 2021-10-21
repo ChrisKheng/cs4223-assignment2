@@ -8,31 +8,39 @@ import (
 )
 
 type BaseSimulator struct {
-	Cores  []core.Core
-	Bus    bus.Bus
-	Memory memory.Memory
+	cores  []*core.Core
+	bus    *bus.Bus
+	memory *memory.Memory
+}
+
+func NewBaseSimulator(cores []*core.Core, bus *bus.Bus, memory *memory.Memory) *BaseSimulator {
+	return &BaseSimulator{
+		cores:  cores,
+		bus:    bus,
+		memory: memory,
+	}
 }
 
 func (s *BaseSimulator) Run() {
 	for !s.isAllCoresDone() {
-		for i := 0; i < len(s.Cores); i++ {
-			s.Cores[i].Execute()
+		for i := 0; i < len(s.cores); i++ {
+			s.cores[i].Execute()
 		}
 
-		s.Memory.Execute()
-		s.Bus.Execute()
+		s.bus.Execute()
+		s.memory.Execute()
 	}
 
 	coreStats := []core.CoreStats{}
-	for i := range s.Cores {
-		coreStats = append(coreStats, s.Cores[i].GetStatistics())
+	for i := range s.cores {
+		coreStats = append(coreStats, s.cores[i].GetStatistics())
 	}
 	stats.PrintStatistics(coreStats)
 }
 
 func (s *BaseSimulator) isAllCoresDone() bool {
-	for i := range s.Cores {
-		if !s.Cores[i].IsDone() {
+	for i := range s.cores {
+		if !s.cores[i].IsDone() {
 			return false
 		}
 	}
