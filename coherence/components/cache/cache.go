@@ -2,6 +2,6 @@ package cache
 
 type Cache interface {
 	Execute()
-	RequestRead()
-	RequestWrite()
+	RequestRead(address uint32)
+	RequestWrite(address uint32)
 }

@@ -8,13 +8,19 @@ type DragonCache struct {
 	*cache.BaseCache
 }
 
+func NewDragonCache(blockSize, associativity, cacheSize int) *DragonCache {
+	return &DragonCache{
+		BaseCache: cache.NewBaseCache(blockSize, associativity, cacheSize),
+	}
+}
+
 func (c *DragonCache) Execute() {
 }
 
-func (c *DragonCache) RequestRead() {
+func (c *DragonCache) RequestRead(cache uint32) {
 
 }
 
-func (c *DragonCache) RequestWrite() {
+func (c *DragonCache) RequestWrite(cache uint32) {
 
 }

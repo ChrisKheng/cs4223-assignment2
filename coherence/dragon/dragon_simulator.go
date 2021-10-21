@@ -13,7 +13,7 @@ func NewDragonSimulator(numCores int, inputFilePrefix string, cacheSize int, ass
 	cores := []core.Core{}
 
 	for i := 0; i < numCores; i++ {
-		cores = append(cores, core.NewCore(i, inputFilePrefix, &DragonCache{}))
+		cores = append(cores, core.NewCore(i, inputFilePrefix, NewDragonCache(blockSize, associativity, cacheSize)))
 	}
 
 	return &DragonSimulator{&simulator.BaseSimulator{Cores: cores}}

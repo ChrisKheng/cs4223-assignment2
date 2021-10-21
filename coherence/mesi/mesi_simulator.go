@@ -13,7 +13,7 @@ func NewMesiSimulator(numCores int, inputFilePrefix string, cacheSize int, assoc
 	cores := []core.Core{}
 
 	for i := 0; i < numCores; i++ {
-		cores = append(cores, core.NewCore(i, inputFilePrefix, &MesiCache{}))
+		cores = append(cores, core.NewCore(i, inputFilePrefix, NewMesiCache(blockSize, associativity, cacheSize)))
 	}
 
 	return &MesiSimulator{&simulator.BaseSimulator{Cores: cores}}
