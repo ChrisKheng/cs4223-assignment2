@@ -4,23 +4,23 @@ import (
 	"github.com/chriskheng/cs4223-assignment2/coherence/components/cache"
 )
 
-type DragonCache struct {
-	*cache.BaseCache
+type DragonCacheController struct {
+	*cache.BaseCacheController
 }
 
-func NewDragonCache(blockSize, associativity, cacheSize int) *DragonCache {
-	return &DragonCache{
-		BaseCache: cache.NewBaseCache(blockSize, associativity, cacheSize),
+func NewDragonCache(blockSize, associativity, cacheSize int) *DragonCacheController {
+	return &DragonCacheController{
+		BaseCacheController: cache.NewBaseCache(blockSize, associativity, cacheSize),
 	}
 }
 
-func (c *DragonCache) Execute() {
+func (c *DragonCacheController) Execute() {
 }
 
-func (c *DragonCache) RequestRead(cache uint32) {
+func (c *DragonCacheController) RequestRead(cache uint32) {
 
 }
 
-func (c *DragonCache) RequestWrite(cache uint32) {
+func (c *DragonCacheController) RequestWrite(cache uint32) {
 
 }
