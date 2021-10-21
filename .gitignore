@@ -2,5 +2,6 @@
 .vscode
 
 benchmarks
+benchmarks.zip
 coherence/coherence
 out.txt
