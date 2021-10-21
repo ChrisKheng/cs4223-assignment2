@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strconv"
 
 	"github.com/chriskheng/cs4223-assignment2/coherence/components/cache"
 	"github.com/chriskheng/cs4223-assignment2/coherence/utils"
@@ -81,10 +80,7 @@ func (core *Core) Execute() {
 		utils.Check(err)
 
 		if inst.iType == othersOp {
-			cycles, err := strconv.ParseInt(inst.value, 0, 64)
-			if err != nil {
-				panic(err)
-			}
+			cycles := inst.value
 
 			if cycles > 1 {
 				core.counter = int(cycles) - 1
@@ -92,7 +88,8 @@ func (core *Core) Execute() {
 			}
 			core.stats.NumComputeCycles++
 		} else if inst.iType == loadOp {
-			// TODO: Call relevant method of cache
+			core.cache.RequestRead(inst.value, core.OnRequestComplete)
+			core.state = MemoryState
 			core.stats.NumLoadStores++
 		} else if inst.iType == storeOp {
 			// TODO: Call relevant method of cache
@@ -114,5 +111,8 @@ func (core *Core) IsDone() bool {
 }
 
 func (core *Core) OnRequestComplete() {
-
+	if core.state != MemoryState {
+		panic("onRequestComplete should only be called when the core is in the memory state")
+	}
+	core.state = Ready
 }

@@ -13,14 +13,3 @@ func NewMesiCache(blockSize, associativity, cacheSize int) *MesiCacheController 
 		BaseCacheController: cache.NewBaseCache(blockSize, associativity, cacheSize),
 	}
 }
-
-func (c *MesiCacheController) Execute() {
-}
-
-func (c *MesiCacheController) RequestRead(address uint32) {
-
-}
-
-func (c *MesiCacheController) RequestWrite(address uint32) {
-
-}

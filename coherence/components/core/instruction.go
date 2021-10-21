@@ -2,6 +2,7 @@ package core
 
 import (
 	"errors"
+	"strconv"
 	"strings"
 )
 
@@ -15,7 +16,7 @@ const (
 
 type instruction struct {
 	iType instructionType
-	value string
+	value uint32
 }
 
 func parseInstruction(line string) (instruction, error) {
@@ -29,7 +30,12 @@ func parseInstruction(line string) (instruction, error) {
 		return instruction{}, err
 	}
 
-	return instruction{iType: iType, value: tokens[1]}, nil
+	value, err := strconv.ParseInt(tokens[1], 0, 32)
+	if err != nil {
+		return instruction{}, err
+	}
+
+	return instruction{iType: iType, value: uint32(value)}, nil
 }
 
 func parseInstructionType(token string) (instructionType, error) {

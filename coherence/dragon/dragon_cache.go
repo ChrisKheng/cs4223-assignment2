@@ -13,14 +13,3 @@ func NewDragonCache(blockSize, associativity, cacheSize int) *DragonCacheControl
 		BaseCacheController: cache.NewBaseCache(blockSize, associativity, cacheSize),
 	}
 }
-
-func (c *DragonCacheController) Execute() {
-}
-
-func (c *DragonCacheController) RequestRead(cache uint32) {
-
-}
-
-func (c *DragonCacheController) RequestWrite(cache uint32) {
-
-}
