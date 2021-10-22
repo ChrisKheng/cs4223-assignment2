@@ -2,11 +2,13 @@ package stats
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/chriskheng/cs4223-assignment2/coherence/components/core"
 )
 
-func PrintStatistics(stats []core.CoreStats) {
+func PrintStatistics(duration time.Duration, stats []core.CoreStats) {
+	fmt.Printf("Total time taken: %d ms\n", duration.Milliseconds())
 	fmt.Printf("Total Cycles: %d\n", getMaxCycles(stats))
 	for i := range stats {
 		fmt.Printf("======================================================\n")
