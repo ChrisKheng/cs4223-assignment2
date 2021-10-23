@@ -62,6 +62,7 @@ func (cacheDs *Cache) Contain(address uint32) bool {
 }
 
 // Return true together with the evicted address if eviction occurs during the insertion.
+// Also return the index of the position in the array where the cache line is inserted.
 func (cacheDs *Cache) Insert(address uint32) (bool, uint32, int) {
 	// If the address is already in the cache, then skip the insert
 	if cacheDs.GetIndexInArray(address) != -1 {

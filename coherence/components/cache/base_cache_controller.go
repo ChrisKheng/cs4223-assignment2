@@ -16,32 +16,36 @@ type BaseCacheController struct {
 	needToReply                   bool
 	transactionToSendWhenReplying xact.Transaction
 	busAcquiredTimestamp          time.Time
+	id                            int
 }
 
 type CacheControllerState int
 
 const (
 	Ready CacheControllerState = iota
-	CacheHit
-	CacheMiss
+	ReadHit
+	ReadMiss
+	WriteHit
+	WriteMiss
 	WaitForBus
 	WaitForPropagation
 )
 
-func NewBaseCache(bus *bus.Bus, blockSize, associativity, cacheSize int) *BaseCacheController {
+func NewBaseCache(id int, bus *bus.Bus, blockSize, associativity, cacheSize int) *BaseCacheController {
 	// TODO: Register bus snooping callback here by calling bus.RegisterSnoopingCallBack
 	return &BaseCacheController{
 		bus:   bus,
 		cache: NewCacheDs(blockSize, associativity, cacheSize),
+		id:    id,
 	}
 }
 
 func (cc *BaseCacheController) Execute() {
 	switch cc.state {
-	case CacheHit:
+	case ReadHit:
 		cc.onClientRequestComplete()
 		cc.state = Ready
-	case CacheMiss:
+	case ReadMiss:
 		cc.bus.RequestAccess(cc.OnBusAccessGranted)
 		cc.state = WaitForBus
 	}

@@ -10,6 +10,7 @@ type Memory struct {
 	addressBeingProcessed uint32
 	dataSizeInWords       uint32
 	replyCallback         xact.ReplyCallback
+	id                    int
 }
 
 type MemoryState int
@@ -23,8 +24,8 @@ const (
 
 const memLatency = 100
 
-func NewMemory() *Memory {
-	return &Memory{}
+func NewMemory(id int) *Memory {
+	return &Memory{id: id}
 }
 
 func (m *Memory) Execute() {
@@ -39,6 +40,7 @@ func (m *Memory) Execute() {
 				TransactionType: xact.NoOp,
 				Address:         m.addressBeingProcessed,
 				SendDataSize:    m.dataSizeInWords,
+				SenderId:        m.id,
 			}
 			msg := xact.ReplyMsg{IsFromMem: true}
 
@@ -50,6 +52,10 @@ func (m *Memory) Execute() {
 }
 
 func (m *Memory) OnSnoop(transaction xact.Transaction) {
+	if transaction.SenderId == m.id {
+		return
+	}
+
 	// if transaction.TransactionType != xact.FlushOpt && m.state != Ready {
 	// 	panic(fmt.Sprintf("memory is in %d state when bus read is received", m.state))
 	// }

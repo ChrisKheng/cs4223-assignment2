@@ -14,11 +14,12 @@ type MesiSimulator struct {
 
 func NewMesiSimulator(numCores int, inputFilePrefix string, cacheSize int, associativity int, blockSize int) *MesiSimulator {
 	cores := []*core.Core{}
-	memory := memory.NewMemory()
+	memory := memory.NewMemory(numCores)
 	bus := bus.NewBus(memory)
 
 	for i := 0; i < numCores; i++ {
-		cores = append(cores, core.NewCore(i, inputFilePrefix, cache.NewMesiCache(bus, blockSize, associativity, cacheSize)))
+		cache := cache.NewMesiCache(i, bus, blockSize, associativity, cacheSize)
+		cores = append(cores, core.NewCore(i, inputFilePrefix, cache))
 	}
 
 	return &MesiSimulator{BaseSimulator: simulator.NewBaseSimulator(cores, bus, memory)}

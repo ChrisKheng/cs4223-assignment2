@@ -6,18 +6,18 @@ type DragonCacheController struct {
 	*BaseCacheController
 }
 
-func NewDragonCache(bus *bus.Bus, blockSize, associativity, cacheSize int) *DragonCacheController {
+func NewDragonCache(id int, bus *bus.Bus, blockSize, associativity, cacheSize int) *DragonCacheController {
 	return &DragonCacheController{
-		BaseCacheController: NewBaseCache(bus, blockSize, associativity, cacheSize),
+		BaseCacheController: NewBaseCache(id, bus, blockSize, associativity, cacheSize),
 	}
 }
 
 func (c *DragonCacheController) RequestRead(address uint32, callback func()) {
 	c.onClientRequestComplete = callback
 	if c.cache.Contain(address) {
-		c.state = CacheHit
+		c.state = ReadHit
 	} else {
-		c.state = CacheMiss
+		c.state = ReadMiss
 	}
 }
 

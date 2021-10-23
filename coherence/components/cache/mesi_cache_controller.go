@@ -21,9 +21,9 @@ const (
 	Shared
 )
 
-func NewMesiCache(bus *bus.Bus, blockSize, associativity, cacheSize int) *MesiCacheController {
+func NewMesiCache(id int, bus *bus.Bus, blockSize, associativity, cacheSize int) *MesiCacheController {
 	mesiCC := &MesiCacheController{
-		BaseCacheController: NewBaseCache(bus, blockSize, associativity, cacheSize),
+		BaseCacheController: NewBaseCache(id, bus, blockSize, associativity, cacheSize),
 	}
 
 	mesiCC.cacheStates = make([]MesiCacheState, len(mesiCC.cache.cacheArray))
@@ -40,20 +40,32 @@ func NewMesiCache(bus *bus.Bus, blockSize, associativity, cacheSize int) *MesiCa
 func (cc *MesiCacheController) RequestRead(address uint32, callback func()) {
 	cc.onClientRequestComplete = callback
 	if cc.cache.Contain(address) {
-		cc.state = CacheHit
+		cc.state = ReadHit
 	} else {
-		cc.state = CacheMiss
+		cc.state = ReadMiss
 		cc.currentTransaction = xact.Transaction{
 			TransactionType:   xact.BusRead,
 			Address:           address,
 			Callback:          cc.OnReadComplete,
 			RequestedDataSize: cc.cache.blockSizeInWords,
+			SenderId:          cc.id,
 		}
 	}
 }
 
 func (cc *MesiCacheController) RequestWrite(address uint32, callback func()) {
-
+	cc.onClientRequestComplete = callback
+	if cc.cache.Contain(address) {
+		cc.state = WriteHit
+	} else {
+		cc.state = WriteMiss
+		// cc.currentTransaction = xact.Transaction{
+		// 	TransactionType: xact.BusReadX,
+		// 	Address: address,
+		// 	Callback: ,
+		//  SenderId: ,
+		// }
+	}
 }
 
 func (cc *MesiCacheController) OnReadComplete(reply xact.ReplyMsg) {
@@ -65,10 +77,14 @@ func (cc *MesiCacheController) OnReadComplete(reply xact.ReplyMsg) {
 	if isEvicted {
 		// TODO: Handle the case where a modified cache block got evicted!
 		evictedAddress += 1
+		cc.cacheStates[absoluteIndex] = Invalid
 	}
 
-	// TODO: Handle Exclusive state too
-	cc.cacheStates[absoluteIndex] = Shared
+	if reply.IsFromMem {
+		cc.cacheStates[absoluteIndex] = Exclusive
+	} else {
+		cc.cacheStates[absoluteIndex] = Shared
+	}
 
 	cc.onClientRequestComplete()
 	cc.state = Ready
@@ -76,23 +92,36 @@ func (cc *MesiCacheController) OnReadComplete(reply xact.ReplyMsg) {
 	cc.bus.ReleaseBus(cc.busAcquiredTimestamp)
 }
 
+func (cc *MesiCacheController) OnWriteComplete(reply xact.ReplyMsg) {
+	if cc.state != WaitForPropagation {
+		panic(fmt.Sprintf("onWriteComplete of cache is called when cache is in %d state", cc.state))
+	}
+
+	// if !reply.IsFromMem {
+	//
+	// }
+}
+
 func (cc *MesiCacheController) OnSnoop(transaction xact.Transaction) {
-	if !cc.cache.Contain(transaction.Address) {
+	if transaction.SenderId == cc.id || !cc.cache.Contain(transaction.Address) {
 		return
 	}
 
-	// Should ignore FlushOpt
 	switch transaction.TransactionType {
 	case xact.BusRead:
-		// TODO: Check if the cache state is not shared state. If it's shared state, don't have to do anything
-		// Also need to check if it is in M state.
-		// This assumes that the cache state is in Exclusive.
+		// TODO: Need to check if it is in M state. Need to write back if neccessary.
 		cc.transactionToSendWhenReplying = xact.Transaction{
 			TransactionType: xact.FlushOpt,
 			Address:         transaction.Address,
 			SendDataSize:    transaction.RequestedDataSize,
+			SenderId:        cc.id,
 		}
 		cc.needToReply = true
+
+		absoluteIndex := cc.cache.GetIndexInArray(transaction.Address)
+		if cc.cacheStates[absoluteIndex] == Exclusive {
+			cc.cacheStates[absoluteIndex] = Shared
+		}
 	}
 }
 
@@ -101,6 +130,6 @@ func (cc *MesiCacheController) ReceiveReplyCallBack(replyCallback xact.ReplyCall
 		return
 	}
 
-	replyCallback(cc.transactionToSendWhenReplying, xact.ReplyMsg{})
+	replyCallback(cc.transactionToSendWhenReplying, xact.ReplyMsg{IsFromMem: false})
 	cc.needToReply = false
 }

@@ -8,12 +8,14 @@ type Transaction struct {
 	Callback          OnRequestCompleteCallBack
 	RequestedDataSize uint32 // In words
 	SendDataSize      uint32 // Only set this if you want to send a block from a cache to another cache
+	SenderId          int    // MUST specify
 }
 
 type TransactionType int
 
 const (
 	BusRead TransactionType = iota
+	BusReadX
 	FlushOpt
 	NoOp
 )
