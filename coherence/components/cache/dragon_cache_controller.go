@@ -14,7 +14,7 @@ func NewDragonCache(bus *bus.Bus, blockSize, associativity, cacheSize int) *Drag
 
 func (c *DragonCacheController) RequestRead(address uint32, callback func()) {
 	c.onClientRequestComplete = callback
-	if c.cacheDs.Contain(address) {
+	if c.cache.Contain(address) {
 		c.state = CacheHit
 	} else {
 		c.state = CacheMiss

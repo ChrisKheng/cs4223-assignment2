@@ -3,14 +3,17 @@ package cache
 import (
 	"math"
 	"time"
+
+	"github.com/chriskheng/cs4223-assignment2/coherence/constants"
 )
 
 type Cache struct {
-	offsetNumBits   uint32
-	setIndexNumBits uint32
-	associativity   uint32
-	numSets         uint32
-	cacheArray      []CacheLine
+	offsetNumBits    uint32
+	setIndexNumBits  uint32
+	associativity    uint32
+	numSets          uint32
+	blockSizeInWords uint32
+	cacheArray       []CacheLine
 }
 
 type CacheLine struct {
@@ -28,11 +31,12 @@ func NewCacheDs(blockSize, associativity, cacheSize int) Cache {
 	numSets := uint32(numBlocks / associativity)
 
 	return Cache{
-		offsetNumBits:   uint32(math.Log2(float64(blockSize))),
-		setIndexNumBits: uint32(math.Log2(float64(numSets))),
-		associativity:   uint32(associativity),
-		numSets:         numSets,
-		cacheArray:      make([]CacheLine, numBlocks),
+		offsetNumBits:    uint32(math.Log2(float64(blockSize))),
+		setIndexNumBits:  uint32(math.Log2(float64(numSets))),
+		associativity:    uint32(associativity),
+		numSets:          numSets,
+		blockSizeInWords: uint32(blockSize) / constants.WordSize,
+		cacheArray:       make([]CacheLine, numBlocks),
 	}
 }
 

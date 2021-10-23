@@ -99,6 +99,8 @@ func (core *Core) Execute() {
 		}
 	}
 
+	// fmt.Printf("Core %d is in %d state\n", core.index, core.state)
+
 	core.cache.Execute()
 }
 
