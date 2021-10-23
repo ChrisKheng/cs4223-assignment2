@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+
+	"github.com/chriskheng/cs4223-assignment2/coherence/constants"
 )
 
 type CCProtocol int
@@ -47,7 +49,9 @@ func (p *InputParser) Parse() error {
 	p.CacheAssociativity = associativityValue
 	p.CacheBlockSize = blockSizeValue
 
-	p.checkCacheValues()
+	if err := p.checkCacheValues(); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -68,6 +72,10 @@ func (p *InputParser) checkCacheValues() error {
 		return errors.New("cache_size, block_size, and associativity needs to be power of 2")
 	}
 
+	if p.CacheBlockSize < int(constants.WordSize) {
+		return errors.New("block_size needs to be at least the word size")
+	}
+
 	if p.CacheSize%p.CacheBlockSize != 0 {
 		return errors.New("cache_size needs to be divisible by block_size")
 	}
@@ -86,5 +94,5 @@ func (p *InputParser) PrintUsage() {
 	fmt.Fprintln(os.Stderr, "input_file_prefix: Prefix to the benchmark file, e.g. ../benchmarks/blackscholes_four/blackscholes")
 	fmt.Fprintln(os.Stderr, "cache_size: cache size in bytes. Must be power of 2 and divisible by block_size")
 	fmt.Fprintln(os.Stderr, "associativity: associativity of the cache. Must be power of 2 and able to divide the number of cache sets")
-	fmt.Fprintln(os.Stderr, "block_size: block size in bytes. Must be power of 2.")
+	fmt.Fprintln(os.Stderr, "block_size: block size in bytes. Must be power of 2 and at least the size of a word (4 bytes).")
 }

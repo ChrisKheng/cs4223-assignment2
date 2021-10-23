@@ -23,9 +23,9 @@ func main() {
 
 	var sim simulator.Simulator
 	if inputParser.Protocol == parser.Mesi {
-		sim = mesi.NewMesiSimulator(4, inputParser.InputFileName, inputParser.CacheSize, inputParser.CacheAssociativity, inputParser.CacheBlockSize)
+		sim = mesi.NewMesiSimulator(inputParser.InputFileName, inputParser.CacheSize, inputParser.CacheAssociativity, inputParser.CacheBlockSize)
 	} else {
-		sim = dragon.NewDragonSimulator(4, inputParser.InputFileName, inputParser.CacheSize, inputParser.CacheAssociativity, inputParser.CacheBlockSize)
+		sim = dragon.NewDragonSimulator(inputParser.InputFileName, inputParser.CacheSize, inputParser.CacheAssociativity, inputParser.CacheBlockSize)
 	}
 
 	sim.Run()

@@ -5,9 +5,12 @@ import (
 )
 
 type Memory struct {
-	counter                   int
-	state                     MemoryState
-	onRequestCompleteCallback xact.OnRequestCompleteCallBack
+	counter               int
+	state                 MemoryState
+	addressBeingProcessed uint32
+	dataSizeInWords       uint32
+	replyCallback         xact.ReplyCallback
+	id                    int
 }
 
 type MemoryState int
@@ -21,8 +24,8 @@ const (
 
 const memLatency = 100
 
-func NewMemory() *Memory {
-	return &Memory{}
+func NewMemory(id int) *Memory {
+	return &Memory{id: id}
 }
 
 func (m *Memory) Execute() {
@@ -32,27 +35,43 @@ func (m *Memory) Execute() {
 		m.counter = memLatency - 1
 	case ReadingResult:
 		m.counter--
-		if m.counter == 0 {
-			m.onRequestCompleteCallback(xact.ReplyMsg{IsFromMem: true})
+		if m.counter <= 0 {
+			transaction := xact.Transaction{
+				TransactionType: xact.NoOp,
+				Address:         m.addressBeingProcessed,
+				SendDataSize:    m.dataSizeInWords,
+				SenderId:        m.id,
+			}
+			msg := xact.ReplyMsg{IsFromMem: true}
+
+			m.replyCallback(transaction, msg)
 			m.state = Ready
-			m.onRequestCompleteCallback = nil
+			m.replyCallback = nil
 		}
 	}
 }
 
-func (m *Memory) OnSnoop(transaction xact.Transaction) (bool, xact.Transaction) {
+func (m *Memory) OnSnoop(transaction xact.Transaction) {
+	if transaction.SenderId == m.id {
+		return
+	}
+
 	// if transaction.TransactionType != xact.FlushOpt && m.state != Ready {
 	// 	panic(fmt.Sprintf("memory is in %d state when bus read is received", m.state))
 	// }
 
 	switch transaction.TransactionType {
 	case xact.BusRead:
+		m.addressBeingProcessed = transaction.Address
+		m.dataSizeInWords = transaction.RequestedDataSize
 		m.state = PrepareToReadResult
-		m.onRequestCompleteCallback = transaction.Callback
 	case xact.FlushOpt:
+		m.dataSizeInWords = 0
+		m.replyCallback = nil
 		m.state = Ready
-		m.onRequestCompleteCallback = nil
 	}
+}
 
-	return false, xact.Transaction{}
+func (m *Memory) ReceiveReplyCallBack(replyCallback xact.ReplyCallback) {
+	m.replyCallback = replyCallback
 }
