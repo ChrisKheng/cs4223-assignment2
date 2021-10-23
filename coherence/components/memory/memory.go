@@ -35,7 +35,14 @@ func (m *Memory) Execute() {
 	case ReadingResult:
 		m.counter--
 		if m.counter <= 0 {
-			m.replyCallback(xact.Transaction{TransactionType: xact.NoOp, Address: m.addressBeingProcessed, SendDataSize: m.dataSizeInWords}, xact.ReplyMsg{IsFromMem: true})
+			transaction := xact.Transaction{
+				TransactionType: xact.NoOp,
+				Address:         m.addressBeingProcessed,
+				SendDataSize:    m.dataSizeInWords,
+			}
+			msg := xact.ReplyMsg{IsFromMem: true}
+
+			m.replyCallback(transaction, msg)
 			m.state = Ready
 			m.replyCallback = nil
 		}

@@ -62,10 +62,10 @@ func (cacheDs *Cache) Contain(address uint32) bool {
 }
 
 // Return true together with the evicted address if eviction occurs during the insertion.
-func (cacheDs *Cache) Insert(address uint32) (bool, uint32) {
+func (cacheDs *Cache) Insert(address uint32) (bool, uint32, int) {
 	// If the address is already in the cache, then skip the insert
 	if cacheDs.GetIndexInArray(address) != -1 {
-		return false, 0
+		return false, 0, -1
 	}
 
 	index := cacheDs.getAbsoluteIndex(address, 0)
@@ -94,7 +94,7 @@ func (cacheDs *Cache) Insert(address uint32) (bool, uint32) {
 	// as the time between two consecutive accesses would become the same
 	time.Sleep(time.Microsecond * 1)
 
-	return isToBeEvicted, evictedAddress
+	return isToBeEvicted, evictedAddress, int(index)
 }
 
 // Access the cache line of the given address and update the cache line timestamp.

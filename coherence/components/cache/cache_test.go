@@ -183,7 +183,8 @@ func TestInsert(t *testing.T) {
 		for _, subtest := range test.cacheContainAndSetTests {
 			switch subtest.action {
 			case Insert:
-				isEvicted, address := cacheDs.Insert(subtest.address)
+				// TODO: Test the index of the insertion
+				isEvicted, address, _ := cacheDs.Insert(subtest.address)
 				if !cacheDs.Contain(subtest.address) {
 					expected := strconv.FormatBool(true)
 					got := strconv.FormatBool(false)

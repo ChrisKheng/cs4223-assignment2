@@ -9,11 +9,26 @@ import (
 
 type MesiCacheController struct {
 	*BaseCacheController
+	cacheStates []MesiCacheState
 }
+
+type MesiCacheState int
+
+const (
+	Invalid MesiCacheState = iota // Put Invalid as first state just in case we forgot to initialise the state.
+	Modified
+	Exclusive
+	Shared
+)
 
 func NewMesiCache(bus *bus.Bus, blockSize, associativity, cacheSize int) *MesiCacheController {
 	mesiCC := &MesiCacheController{
 		BaseCacheController: NewBaseCache(bus, blockSize, associativity, cacheSize),
+	}
+
+	mesiCC.cacheStates = make([]MesiCacheState, len(mesiCC.cache.cacheArray))
+	for i := range mesiCC.cacheStates {
+		mesiCC.cacheStates[i] = Invalid
 	}
 
 	// TODO: Include this in NewDragonCache function too.
@@ -46,7 +61,14 @@ func (cc *MesiCacheController) OnReadComplete(reply xact.ReplyMsg) {
 		panic(fmt.Sprintf("onReadComplete of cache is called when cache is in %d state", cc.state))
 	}
 
-	cc.cache.Insert(cc.currentTransaction.Address)
+	isEvicted, evictedAddress, absoluteIndex := cc.cache.Insert(cc.currentTransaction.Address)
+	if isEvicted {
+		// TODO: Handle the case where a modified cache block got evicted!
+		evictedAddress += 1
+	}
+
+	// TODO: Handle Exclusive state too
+	cc.cacheStates[absoluteIndex] = Shared
 
 	cc.onClientRequestComplete()
 	cc.state = Ready
