@@ -38,10 +38,12 @@ func NewMesiCache(id int, bus *bus.Bus, blockSize, associativity, cacheSize int)
 
 func (cc *MesiCacheController) RequestRead(address uint32, callback func()) {
 	cc.onClientRequestComplete = callback
+	cc.stats.NumCacheAccesses++
 	if cc.cache.Contain(address) {
 		cc.state = ReadHit
 	} else {
 		cc.state = ReadMiss
+		cc.stats.NumCacheMisses++
 		cc.currentTransaction = xact.Transaction{
 			TransactionType:   xact.BusRead,
 			Address:           address,
@@ -54,10 +56,12 @@ func (cc *MesiCacheController) RequestRead(address uint32, callback func()) {
 
 func (cc *MesiCacheController) RequestWrite(address uint32, callback func()) {
 	cc.onClientRequestComplete = callback
+	cc.stats.NumCacheAccesses++
 	if cc.cache.Contain(address) {
 		cc.state = WriteHit
 	} else {
 		cc.state = WriteMiss
+		cc.stats.NumCacheMisses++
 		// cc.currentTransaction = xact.Transaction{
 		// 	TransactionType: xact.BusReadX,
 		// 	Address: address,
@@ -83,6 +87,7 @@ func (cc *MesiCacheController) OnReadComplete(reply xact.ReplyMsg) {
 		cc.cacheStates[absoluteIndex] = Exclusive
 	} else {
 		cc.cacheStates[absoluteIndex] = Shared
+		cc.stats.NumAccessesToSharedData++
 	}
 
 	cc.onClientRequestComplete()

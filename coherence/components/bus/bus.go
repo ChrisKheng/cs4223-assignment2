@@ -6,6 +6,7 @@ import (
 
 	"github.com/chriskheng/cs4223-assignment2/coherence/components/memory"
 	"github.com/chriskheng/cs4223-assignment2/coherence/components/xact"
+	"github.com/chriskheng/cs4223-assignment2/coherence/constants"
 )
 
 const transferCycles uint = 2 // Cycles needed to send a word from a cache to another. Must be at least 2.
@@ -35,7 +36,7 @@ const (
 )
 
 type BusStats struct {
-	DataTraffic int64
+	DataTraffic int
 }
 
 func NewBus(memory *memory.Memory) *Bus {
@@ -109,7 +110,7 @@ func (b *Bus) reply(transaction xact.Transaction, reply xact.ReplyMsg) {
 	}
 
 	// b.counter +1 to leave the send reply logic to Execute() cuz counter may be zero here if without +1.
-	b.stats.DataTraffic += int64(transaction.SendDataSize)
+	b.stats.DataTraffic += int(transaction.SendDataSize * constants.WordSize)
 	b.counter = int(2*transaction.SendDataSize) + 1
 
 	// Snooping callback shouldn't sent to sender!
@@ -122,4 +123,8 @@ func (b *Bus) reply(transaction xact.Transaction, reply xact.ReplyMsg) {
 
 	b.replyMsg = reply
 	b.state = ProcessingReply
+}
+
+func (b *Bus) GetStatistics() BusStats {
+	return b.stats
 }

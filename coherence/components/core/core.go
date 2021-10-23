@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/chriskheng/cs4223-assignment2/coherence/components/cache"
+	"github.com/chriskheng/cs4223-assignment2/coherence/stats"
 	"github.com/chriskheng/cs4223-assignment2/coherence/utils"
 )
 
@@ -104,8 +105,17 @@ func (core *Core) Execute() {
 	core.cache.Execute()
 }
 
-func (core *Core) GetStatistics() CoreStats {
-	return core.stats
+func (core *Core) GetStatistics() stats.Stats {
+	cacheControllerStats := core.cache.GetStats()
+	return stats.Stats{
+		NumComputeCycles:         core.stats.NumComputeCycles,
+		NumLoadStores:            core.stats.NumLoadStores,
+		NumIdleCycles:            core.stats.NumIdleCycles,
+		NumAccessesToPrivateData: cacheControllerStats.NumAccessesToPrivateData,
+		NumAccessesToSharedData:  cacheControllerStats.NumAccessesToSharedData,
+		NumCacheMisses:           cacheControllerStats.NumCacheMisses,
+		NumCacheAccesses:         cacheControllerStats.NumCacheAccesses,
+	}
 }
 
 func (core *Core) IsDone() bool {

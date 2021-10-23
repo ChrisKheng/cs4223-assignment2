@@ -10,4 +10,5 @@ type CacheController interface {
 	OnWriteComplete(reply xact.ReplyMsg)
 	OnSnoop(transaction xact.Transaction)
 	ReceiveReplyCallBack(replyCallback xact.ReplyCallback)
+	GetStats() CacheControllerStats
 }

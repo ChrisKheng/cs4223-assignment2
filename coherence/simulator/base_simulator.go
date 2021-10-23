@@ -35,11 +35,16 @@ func (s *BaseSimulator) Run() {
 	}
 	elapsed := time.Since(start)
 
-	coreStats := []core.CoreStats{}
+	coreStats := []stats.Stats{}
 	for i := range s.cores {
 		coreStats = append(coreStats, s.cores[i].GetStatistics())
 	}
-	stats.PrintStatistics(elapsed, coreStats)
+
+	otherStats := stats.OtherStats{
+		DataTrafficOnBus: s.bus.GetStatistics().DataTraffic,
+	}
+
+	stats.PrintStatistics(elapsed, coreStats, otherStats)
 }
 
 func (s *BaseSimulator) isAllCoresDone() bool {

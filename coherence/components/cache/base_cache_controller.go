@@ -17,6 +17,7 @@ type BaseCacheController struct {
 	transactionToSendWhenReplying xact.Transaction
 	busAcquiredTimestamp          time.Time
 	id                            int
+	stats                         CacheControllerStats
 }
 
 type CacheControllerState int
@@ -55,4 +56,8 @@ func (cc *BaseCacheController) OnBusAccessGranted(timestamp time.Time) xact.Tran
 	cc.busAcquiredTimestamp = timestamp
 	cc.state = WaitForPropagation
 	return cc.currentTransaction
+}
+
+func (cc *BaseCacheController) GetStats() CacheControllerStats {
+	return cc.stats
 }
