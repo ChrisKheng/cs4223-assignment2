@@ -31,7 +31,6 @@ func NewMesiCache(id int, bus *bus.Bus, blockSize, associativity, cacheSize int)
 		mesiCC.cacheStates[i] = Invalid
 	}
 
-	// TODO: Include this in NewDragonCache function too.
 	bus.RegisterSnoopingCallBack(mesiCC.OnSnoop)
 	bus.RegisterGatherReplyCallBack(mesiCC.ReceiveReplyCallBack)
 	return mesiCC
