@@ -12,10 +12,12 @@ type BaseCacheController struct {
 	cache                         Cache
 	state                         CacheControllerState
 	onClientRequestComplete       func()
+	requestedAddress              uint32
 	currentTransaction            xact.Transaction
 	needToReply                   bool
 	transactionToSendWhenReplying xact.Transaction
 	busAcquiredTimestamp          time.Time
+	isHoldingBus                  bool
 	id                            int
 	stats                         CacheControllerStats
 }
@@ -43,10 +45,16 @@ func NewBaseCache(id int, bus *bus.Bus, blockSize, associativity, cacheSize int)
 
 func (cc *BaseCacheController) Execute() {
 	switch cc.state {
-	case ReadHit:
+	case ReadHit, WriteHit:
+		cc.cache.Access(cc.requestedAddress)
 		cc.onClientRequestComplete()
+		if cc.isHoldingBus {
+			cc.bus.ReleaseBus(cc.busAcquiredTimestamp)
+			cc.isHoldingBus = false
+		}
+
 		cc.state = Ready
-	case ReadMiss:
+	case ReadMiss, WriteMiss:
 		cc.bus.RequestAccess(cc.OnBusAccessGranted)
 		cc.state = WaitForBus
 	}
@@ -55,9 +63,16 @@ func (cc *BaseCacheController) Execute() {
 func (cc *BaseCacheController) OnBusAccessGranted(timestamp time.Time) xact.Transaction {
 	cc.busAcquiredTimestamp = timestamp
 	cc.state = WaitForPropagation
+	cc.isHoldingBus = true
 	return cc.currentTransaction
 }
 
 func (cc *BaseCacheController) GetStats() CacheControllerStats {
 	return cc.stats
+}
+
+func (cc *BaseCacheController) prepareForRequest(address uint32, callback func()) {
+	cc.onClientRequestComplete = callback
+	cc.requestedAddress = address
+	cc.stats.NumCacheAccesses++
 }

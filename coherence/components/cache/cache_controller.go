@@ -7,7 +7,7 @@ type CacheController interface {
 	RequestRead(address uint32, callback func())
 	RequestWrite(address uint32, callback func())
 	OnReadComplete(reply xact.ReplyMsg)
-	OnWriteComplete(reply xact.ReplyMsg)
+	OnReadExclusiveComplete(reply xact.ReplyMsg)
 	OnSnoop(transaction xact.Transaction)
 	ReceiveReplyCallBack(replyCallback xact.ReplyCallback)
 	GetStats() CacheControllerStats

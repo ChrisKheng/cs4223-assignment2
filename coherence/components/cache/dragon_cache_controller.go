@@ -36,7 +36,7 @@ func (cc *DragonCacheController) OnReadComplete(reply xact.ReplyMsg) {
 
 }
 
-func (cc *DragonCacheController) OnWriteComplete(reply xact.ReplyMsg) {
+func (cc *DragonCacheController) OnReadExclusiveComplete(reply xact.ReplyMsg) {
 
 }
 

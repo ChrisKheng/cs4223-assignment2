@@ -9,7 +9,7 @@ import (
 	"github.com/chriskheng/cs4223-assignment2/coherence/constants"
 )
 
-const transferCycles uint = 2 // Cycles needed to send a word from a cache to another. Must be at least 2.
+const transferCycles int = 2 // Cycles needed to send a word from a cache to another. Must be at least 2.
 
 type Bus struct {
 	memory                *memory.Memory
@@ -103,15 +103,16 @@ func (b *Bus) RequestAccess(onRequestGranted xact.OnRequestGrantedCallBack) {
 }
 
 func (b *Bus) reply(transaction xact.Transaction, reply xact.ReplyMsg) {
-	// TODO: Remove b.state == ProcessingReply check after you have modified the reply
-	// to BusRead logic such that only Exclusive state sends reply
-	if !(b.state == WaitingForReply || b.state == ProcessingReply) {
+	if b.state == ProcessingReply {
+		// Bus would only send the first reply it receives.
+		return
+	} else if !(b.state == WaitingForReply) {
 		panic(fmt.Sprintf("bus's reply() is called when bus is in %d state\n", b.state))
 	}
 
 	// b.counter +1 to leave the send reply logic to Execute() cuz counter may be zero here if without +1.
 	b.stats.DataTraffic += int(transaction.SendDataSize * constants.WordSize)
-	b.counter = int(2*transaction.SendDataSize) + 1
+	b.counter = transferCycles*int(transaction.SendDataSize) + 1
 
 	// Snooping callback shouldn't sent to sender!
 	// Probably can include sender index in transaction

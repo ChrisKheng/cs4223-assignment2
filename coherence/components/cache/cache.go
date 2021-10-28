@@ -109,6 +109,12 @@ func (cacheDs *Cache) Access(address uint32) bool {
 	return true
 }
 
+// Remove a cache line from the cache.
+func (cacheDs *Cache) Evict(address uint32) {
+	index := cacheDs.GetIndexInArray(address)
+	cacheDs.cacheArray[index].timestamp = 0
+}
+
 // Return the tag of the given address.
 func (cacheDs *Cache) GetTag(address uint32) uint32 {
 	return address >> (cacheDs.setIndexNumBits + cacheDs.offsetNumBits)

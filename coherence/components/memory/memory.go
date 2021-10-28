@@ -61,7 +61,7 @@ func (m *Memory) OnSnoop(transaction xact.Transaction) {
 	// }
 
 	switch transaction.TransactionType {
-	case xact.BusRead:
+	case xact.BusRead, xact.BusReadX:
 		m.addressBeingProcessed = transaction.Address
 		m.dataSizeInWords = transaction.RequestedDataSize
 		m.state = PrepareToReadResult

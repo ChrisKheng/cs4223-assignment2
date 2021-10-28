@@ -93,7 +93,8 @@ func (core *Core) Execute() {
 			core.state = MemoryState
 			core.stats.NumLoadStores++
 		} else if inst.iType == storeOp {
-			// TODO: Call relevant method of cache
+			core.cache.RequestWrite(inst.value, core.OnRequestComplete)
+			core.state = MemoryState
 			core.stats.NumLoadStores++
 		} else {
 			panic(errors.New("unknown operation type"))
