@@ -41,7 +41,7 @@ func NewCacheDs(blockSize, associativity, cacheSize int) Cache {
 }
 
 // Return the index of the address in the underlying array if the data at the address is cached,
-// otherwise return -1.
+// otherwise return -1. The check is based on the tag of the address.
 func (cacheDs *Cache) GetIndexInArray(address uint32) int {
 	tag := cacheDs.GetTag(address)
 

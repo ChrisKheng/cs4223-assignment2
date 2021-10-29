@@ -101,6 +101,7 @@ func (cc *MesiCacheController) handleSnoopWaitForRequestToComplete(transaction x
 	// TODO: Handle the case where a modified cache block got evicted!
 	// Handle S -> M state
 	if transaction.SenderId == cc.id && transaction.TransactionType == xact.BusUpgr {
+		// Should have the same address (since the message is from the current sender itself (loopback))
 		if transaction.Address != cc.currentTransaction.Address {
 			panic("cache controller receives a different address than the address in BusUpgr")
 		}
@@ -118,8 +119,8 @@ func (cc *MesiCacheController) handleSnoopWaitForRequestToComplete(transaction x
 		return
 	}
 
-	if transaction.Address != cc.currentTransaction.Address {
-		panic("cache controller receives a different address than the requested address while waiting for read to complete")
+	if !cc.cache.isSameTag(transaction.Address, cc.currentTransaction.Address) {
+		panic("tag of address received by cache controller is different than the tag of the requested address while waiting for read to complete")
 	}
 
 	_, _, absoluteIndex := cc.cache.Insert(cc.currentTransaction.Address)
@@ -160,8 +161,8 @@ func (cc *MesiCacheController) handleSnoopWaitForRequestToComplete(transaction x
 func (cc *MesiCacheController) handleSnoopWriteBack(transaction xact.Transaction) {
 	if transaction.TransactionType != xact.MemWriteDone {
 		panic(fmt.Sprintf("transaction of type %d is received when cache controller %d is waiting for writeback, sender id: %d", transaction.TransactionType, cc.id, transaction.SenderId))
-	} else if transaction.Address != cc.currentTransaction.Address {
-		panic("address written is not equal to the address requested by cache controller")
+	} else if !cc.cache.isSameTag(transaction.Address, cc.currentTransaction.Address) {
+		panic("tag of address written is not equal to the tag of address requested by cache controller")
 	}
 
 	cc.state = CacheHit
