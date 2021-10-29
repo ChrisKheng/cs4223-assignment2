@@ -68,8 +68,12 @@ func (p *InputParser) parseProtocol(protocol string) (CCProtocol, error) {
 }
 
 func (p *InputParser) checkCacheValues() error {
-	if p.CacheSize%2 != 0 || p.CacheAssociativity%2 != 0 || p.CacheBlockSize%2 != 0 {
-		return errors.New("cache_size, block_size, and associativity needs to be power of 2")
+	if p.CacheAssociativity != 1 && p.CacheAssociativity%2 != 0 {
+		return errors.New("cache associativity to be power of 2")
+	}
+
+	if p.CacheSize%2 != 0 || p.CacheBlockSize%2 != 0 {
+		return errors.New("cache_size and block_size needs to be power of 2")
 	}
 
 	if p.CacheBlockSize < int(constants.WordSize) {

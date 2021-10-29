@@ -15,16 +15,15 @@ func NewDragonCache(id int, bus *bus.Bus, blockSize, associativity, cacheSize in
 	}
 
 	bus.RegisterSnoopingCallBack(dragonCC.OnSnoop)
-	bus.RegisterGatherReplyCallBack(dragonCC.ReceiveReplyCallBack)
 	return dragonCC
 }
 
 func (cc *DragonCacheController) RequestRead(address uint32, callback func()) {
 	cc.onClientRequestComplete = callback
 	if cc.cache.Contain(address) {
-		cc.state = ReadHit
+		cc.state = CacheHit
 	} else {
-		cc.state = ReadMiss
+		cc.state = RequestForBus
 	}
 }
 
@@ -36,7 +35,7 @@ func (cc *DragonCacheController) OnReadComplete(reply xact.ReplyMsg) {
 
 }
 
-func (cc *DragonCacheController) OnWriteComplete(reply xact.ReplyMsg) {
+func (cc *DragonCacheController) OnReadExclusiveComplete(reply xact.ReplyMsg) {
 
 }
 

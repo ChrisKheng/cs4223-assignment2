@@ -25,13 +25,16 @@ func NewBaseSimulator(cores []*core.Core, bus *bus.Bus, memory *memory.Memory) *
 
 func (s *BaseSimulator) Run() {
 	start := time.Now()
+	iter := 0
 	for !s.isAllCoresDone() {
+		// fmt.Printf("Current iter %d\n", iter)
 		for i := 0; i < len(s.cores); i++ {
 			s.cores[i].Execute()
 		}
 
 		s.bus.Execute()
 		s.memory.Execute()
+		iter++
 	}
 	elapsed := time.Since(start)
 

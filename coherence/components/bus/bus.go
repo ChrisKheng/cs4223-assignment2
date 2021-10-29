@@ -4,22 +4,19 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/chriskheng/cs4223-assignment2/coherence/components/memory"
 	"github.com/chriskheng/cs4223-assignment2/coherence/components/xact"
 	"github.com/chriskheng/cs4223-assignment2/coherence/constants"
 )
 
-const transferCycles uint = 2 // Cycles needed to send a word from a cache to another. Must be at least 2.
+const transferCycles int = 2 // Cycles needed to send a word from a cache to another. Must be at least 2.
 
 type Bus struct {
-	memory                *memory.Memory
 	state                 BusState
 	onRequestGrantedFuncs []xact.OnRequestGrantedCallBack
 	snoopingCallBacks     []xact.SnoopingCallBack
-	gatherReplyCallBacks  []xact.GatherReplyCallBack
 	counter               int
 	requestBeingProcessed xact.Transaction
-	replyMsg              xact.ReplyMsg
+	replyToSend           xact.Transaction
 	busAcquiredTimestamp  time.Time
 	stats                 BusStats
 }
@@ -30,7 +27,6 @@ const (
 	Ready BusState = iota
 	ProcessingRequest
 	RequestSent
-	WaitingForReply
 	ProcessingReply
 	ReplySent
 )
@@ -39,14 +35,10 @@ type BusStats struct {
 	DataTraffic int
 }
 
-func NewBus(memory *memory.Memory) *Bus {
+func NewBus() *Bus {
 	bus := &Bus{
-		memory: memory,
-		state:  Ready,
+		state: Ready,
 	}
-
-	bus.RegisterSnoopingCallBack(memory.OnSnoop)
-	bus.RegisterGatherReplyCallBack(memory.ReceiveReplyCallBack)
 
 	return bus
 }
@@ -61,24 +53,24 @@ func (b *Bus) Execute() {
 		transaction := b.onRequestGrantedFuncs[0](b.busAcquiredTimestamp)
 		b.requestBeingProcessed = transaction
 		b.onRequestGrantedFuncs = b.onRequestGrantedFuncs[1:]
+
+		b.transferData(int(transaction.SendDataSize))
 		b.state = ProcessingRequest
 	case ProcessingRequest:
-		for _, snoopingCallback := range b.snoopingCallBacks {
-			snoopingCallback(b.requestBeingProcessed)
-		}
-
-		b.state = RequestSent
-	case RequestSent:
-		b.state = WaitingForReply
-
-		for _, gatherReplyCallback := range b.gatherReplyCallBacks {
-			gatherReplyCallback(b.reply)
+		b.counter--
+		if b.counter <= 0 {
+			for _, snoopingCallback := range b.snoopingCallBacks {
+				snoopingCallback(b.requestBeingProcessed)
+			}
+			b.state = RequestSent
 		}
 	case ProcessingReply:
 		b.counter--
 		if b.counter <= 0 {
 			b.state = ReplySent // MUST be before callback!
-			b.requestBeingProcessed.Callback(b.replyMsg)
+			for _, snoopingCallback := range b.snoopingCallBacks {
+				snoopingCallback(b.replyToSend)
+			}
 		}
 	}
 }
@@ -94,37 +86,29 @@ func (b *Bus) RegisterSnoopingCallBack(callback xact.SnoopingCallBack) {
 	b.snoopingCallBacks = append(b.snoopingCallBacks, callback)
 }
 
-func (b *Bus) RegisterGatherReplyCallBack(callback xact.GatherReplyCallBack) {
-	b.gatherReplyCallBacks = append(b.gatherReplyCallBacks, callback)
-}
-
 func (b *Bus) RequestAccess(onRequestGranted xact.OnRequestGrantedCallBack) {
 	b.onRequestGrantedFuncs = append(b.onRequestGrantedFuncs, onRequestGranted)
 }
 
-func (b *Bus) reply(transaction xact.Transaction, reply xact.ReplyMsg) {
-	// TODO: Remove b.state == ProcessingReply check after you have modified the reply
-	// to BusRead logic such that only Exclusive state sends reply
-	if !(b.state == WaitingForReply || b.state == ProcessingReply) {
+func (b *Bus) Reply(transaction xact.Transaction) {
+	if b.state == ProcessingReply {
+		// Bus would only send the first reply it receives.
+		return
+	} else if !(b.state == RequestSent || b.state == ReplySent) {
 		panic(fmt.Sprintf("bus's reply() is called when bus is in %d state\n", b.state))
 	}
 
-	// b.counter +1 to leave the send reply logic to Execute() cuz counter may be zero here if without +1.
-	b.stats.DataTraffic += int(transaction.SendDataSize * constants.WordSize)
-	b.counter = int(2*transaction.SendDataSize) + 1
-
-	// Snooping callback shouldn't sent to sender!
-	// Probably can include sender index in transaction
-	// Need to send reply to everyone else, e.g. to memory so that memory transit from
-	// preparingToRead to ready in the case of cache-to-cache sharing.
-	for _, snoopingCallback := range b.snoopingCallBacks {
-		snoopingCallback(transaction)
-	}
-
-	b.replyMsg = reply
+	b.transferData(int(transaction.SendDataSize))
+	b.replyToSend = transaction
 	b.state = ProcessingReply
 }
 
 func (b *Bus) GetStatistics() BusStats {
 	return b.stats
+}
+
+func (b *Bus) transferData(dataSize int) {
+	// b.counter +1 to leave the send reply logic to Execute() cuz counter may be zero here if without +1.
+	b.stats.DataTraffic += dataSize * int(constants.WordSize)
+	b.counter = transferCycles*dataSize + 1
 }

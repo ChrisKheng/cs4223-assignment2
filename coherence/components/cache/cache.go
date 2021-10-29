@@ -41,7 +41,7 @@ func NewCacheDs(blockSize, associativity, cacheSize int) Cache {
 }
 
 // Return the index of the address in the underlying array if the data at the address is cached,
-// otherwise return -1.
+// otherwise return -1. The check is based on the tag of the address.
 func (cacheDs *Cache) GetIndexInArray(address uint32) int {
 	tag := cacheDs.GetTag(address)
 
@@ -109,6 +109,12 @@ func (cacheDs *Cache) Access(address uint32) bool {
 	return true
 }
 
+// Remove a cache line from the cache.
+func (cacheDs *Cache) Evict(address uint32) {
+	index := cacheDs.GetIndexInArray(address)
+	cacheDs.cacheArray[index].timestamp = 0
+}
+
 // Return the tag of the given address.
 func (cacheDs *Cache) GetTag(address uint32) uint32 {
 	return address >> (cacheDs.setIndexNumBits + cacheDs.offsetNumBits)
@@ -124,4 +130,8 @@ func (cacheDs *Cache) GetCacheSetIndex(address uint32) uint32 {
 func (cacheDs *Cache) getAbsoluteIndex(address uint32, round int) uint32 {
 	normalizedIndex := cacheDs.GetCacheSetIndex(address)
 	return normalizedIndex + uint32(round)*cacheDs.numSets
+}
+
+func (cacheDs *Cache) isSameTag(address1 uint32, address2 uint32) bool {
+	return cacheDs.GetTag(address1) == cacheDs.GetTag(address2)
 }

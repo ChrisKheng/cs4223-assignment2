@@ -15,8 +15,8 @@ type DragonSimulator struct {
 
 func NewDragonSimulator(inputFilePrefix string, cacheSize int, associativity int, blockSize int) *DragonSimulator {
 	cores := []*core.Core{}
-	memory := memory.NewMemory(constants.NumCores)
-	bus := bus.NewBus(memory)
+	bus := bus.NewBus()
+	memory := memory.NewMemory(constants.NumCores, bus)
 
 	for i := 0; i < constants.NumCores; i++ {
 		cache := cache.NewDragonCache(i, bus, blockSize, associativity, cacheSize)
