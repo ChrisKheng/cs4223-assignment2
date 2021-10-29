@@ -1,15 +1,16 @@
 package memory
 
 import (
+	"github.com/chriskheng/cs4223-assignment2/coherence/components/bus"
 	"github.com/chriskheng/cs4223-assignment2/coherence/components/xact"
 )
 
 type Memory struct {
+	bus                   *bus.Bus
 	counter               int
 	state                 MemoryState
 	addressBeingProcessed uint32
 	dataSizeInWords       uint32
-	replyCallback         xact.ReplyCallback
 	id                    int
 }
 
@@ -18,14 +19,17 @@ type MemoryState int
 const (
 	Ready MemoryState = iota
 	PrepareToReadResult
+	PrepareToWriteResult
 	ReadingResult
 	WritingResult
 )
 
-const memLatency = 100
+const memLatency = 20
 
-func NewMemory(id int) *Memory {
-	return &Memory{id: id}
+func NewMemory(id int, bus *bus.Bus) *Memory {
+	memory := &Memory{id: id, bus: bus}
+	memory.bus.RegisterSnoopingCallBack(memory.OnSnoop)
+	return memory
 }
 
 func (m *Memory) Execute() {
@@ -33,20 +37,31 @@ func (m *Memory) Execute() {
 	case PrepareToReadResult:
 		m.state = ReadingResult
 		m.counter = memLatency - 1
+	case PrepareToWriteResult:
+		m.state = WritingResult
+		m.counter = memLatency - 1
 	case ReadingResult:
 		m.counter--
 		if m.counter <= 0 {
 			transaction := xact.Transaction{
-				TransactionType: xact.NoOp,
+				TransactionType: xact.MemReadDone,
 				Address:         m.addressBeingProcessed,
 				SendDataSize:    m.dataSizeInWords,
 				SenderId:        m.id,
 			}
-			msg := xact.ReplyMsg{IsFromMem: true}
-
-			m.replyCallback(transaction, msg)
+			m.bus.Reply(transaction)
 			m.state = Ready
-			m.replyCallback = nil
+		}
+	case WritingResult:
+		m.counter--
+		if m.counter <= 0 {
+			transaction := xact.Transaction{
+				TransactionType: xact.MemWriteDone,
+				Address:         m.addressBeingProcessed,
+				SenderId:        m.id,
+			}
+			m.bus.Reply(transaction)
+			m.state = Ready
 		}
 	}
 }
@@ -67,11 +82,10 @@ func (m *Memory) OnSnoop(transaction xact.Transaction) {
 		m.state = PrepareToReadResult
 	case xact.FlushOpt:
 		m.dataSizeInWords = 0
-		m.replyCallback = nil
 		m.state = Ready
+	case xact.Flush:
+		m.addressBeingProcessed = transaction.Address
+		m.dataSizeInWords = 0
+		m.state = PrepareToWriteResult
 	}
-}
-
-func (m *Memory) ReceiveReplyCallBack(replyCallback xact.ReplyCallback) {
-	m.replyCallback = replyCallback
 }
