@@ -107,7 +107,7 @@ func (cc *MesiCacheController) handleSnoopWaitForRequestToComplete(transaction x
 		cc.state = CacheHit
 		index := cc.cache.GetIndexInArray(cc.currentTransaction.Address)
 		if index == -1 {
-			panic("index returned is -1")
+			panic(fmt.Sprintf("index returned is -1, current iter %d", cc.iter))
 		}
 
 		cc.cacheStates[index] = Modified
@@ -210,8 +210,7 @@ func (cc *MesiCacheController) handleSnoopOtherCases(transaction xact.Transactio
 	case Shared:
 		switch transaction.TransactionType {
 		case xact.BusReadX, xact.BusUpgr:
-			needToChangeTransaction := cc.state == WaitForBus && cc.currentTransaction.TransactionType == xact.BusUpgr &&
-				cc.currentTransaction.Address == transaction.Address
+			needToChangeTransaction := cc.state == WaitForBus && cc.currentTransaction.TransactionType == xact.BusUpgr && cc.cache.isSameTag(cc.currentTransaction.Address, transaction.Address)
 			if needToChangeTransaction {
 				cc.currentTransaction = xact.Transaction{
 					TransactionType:   xact.BusReadX,

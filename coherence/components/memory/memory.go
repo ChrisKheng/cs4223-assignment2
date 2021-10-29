@@ -24,7 +24,7 @@ const (
 	WritingResult
 )
 
-const memLatency = 20
+const memLatency = 100
 
 func NewMemory(id int, bus *bus.Bus) *Memory {
 	memory := &Memory{id: id, bus: bus}

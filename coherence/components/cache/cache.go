@@ -131,3 +131,7 @@ func (cacheDs *Cache) getAbsoluteIndex(address uint32, round int) uint32 {
 	normalizedIndex := cacheDs.GetCacheSetIndex(address)
 	return normalizedIndex + uint32(round)*cacheDs.numSets
 }
+
+func (cacheDs *Cache) isSameTag(address1 uint32, address2 uint32) bool {
+	return cacheDs.GetTag(address1) == cacheDs.GetTag(address2)
+}
