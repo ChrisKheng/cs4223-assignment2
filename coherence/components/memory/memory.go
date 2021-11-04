@@ -83,7 +83,7 @@ func (m *Memory) OnSnoop(transaction xact.Transaction) {
 	case xact.FlushOpt:
 		m.dataSizeInWords = 0
 		m.state = Ready
-	case xact.Flush:
+	case xact.Flush, xact.BusUpd:
 		m.addressBeingProcessed = transaction.Address
 		m.dataSizeInWords = 0
 		m.state = PrepareToWriteResult

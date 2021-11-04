@@ -169,6 +169,7 @@ func (cc *MesiCacheController) handleSnoopWaitForRequestToComplete(transaction x
 		return
 	}
 
+	// only for reply cases
 	if !cc.cache.isSameTag(transaction.Address, cc.currentTransaction.Address) {
 		fmt.Printf("iter: %d\n", cc.iter)
 		panic("tag of address received by cache controller is different than the tag of the requested address while waiting for read to complete")
@@ -209,6 +210,7 @@ func (cc *MesiCacheController) handleSnoopWaitForRequestToComplete(transaction x
 	}
 }
 
+// write to memory
 func (cc *MesiCacheController) handleSnoopWriteBack(transaction xact.Transaction) {
 	if transaction.TransactionType != xact.MemWriteDone {
 		panic(fmt.Sprintf("transaction of type %d is received when cache controller %d is waiting for writeback, sender id: %d", transaction.TransactionType, cc.id, transaction.SenderId))

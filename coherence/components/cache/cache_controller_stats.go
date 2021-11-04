@@ -5,4 +5,5 @@ type CacheControllerStats struct {
 	NumAccessesToSharedData  int
 	NumCacheMisses           int
 	NumCacheAccesses         int // Hit + miss
+	NumCacheUpdates          int
 }
