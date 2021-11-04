@@ -21,6 +21,8 @@ const (
 	MemWriteDone
 	FlushOpt
 	Flush
+	BusUpd
+	UpdateDone
 )
 
 type ReleaseBus func()

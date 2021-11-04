@@ -15,6 +15,7 @@ type Stats struct {
 	NumAccessesToSharedData  int
 	NumCacheMisses           int
 	NumCacheAccesses         int
+	NumCacheUpdates          int
 }
 
 type OtherStats struct {
