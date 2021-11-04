@@ -91,11 +91,24 @@ func (cc *MesiCacheController) RequestWrite(address uint32, callback func()) {
 	} else {
 		cc.state = RequestForBus
 		cc.stats.NumCacheMisses++
-		cc.currentTransaction = xact.Transaction{
+		busReadXXact := xact.Transaction{
 			TransactionType:   xact.BusReadX,
 			Address:           address,
 			RequestedDataSize: cc.cache.blockSizeInWords,
 			SenderId:          cc.id,
+		}
+
+		isToBeEvicted, evictedAddress, index := cc.cache.GetAddressToBeEvicted(address)
+		if !isToBeEvicted || cc.cacheStates[index] != Modified {
+			cc.currentTransaction = busReadXXact
+		} else {
+			cc.xactToIssueAfterEvictWriteBack = busReadXXact
+			cc.currentTransaction = xact.Transaction{
+				TransactionType: xact.Flush,
+				Address:         evictedAddress,
+				SendDataSize:    cc.cache.blockSizeInWords,
+				SenderId:        cc.id,
+			}
 		}
 	}
 }
@@ -136,7 +149,6 @@ func (cc *MesiCacheController) handleSnoopWaitForEvictWriteBack(transaction xact
 }
 
 func (cc *MesiCacheController) handleSnoopWaitForRequestToComplete(transaction xact.Transaction) {
-	// TODO: Handle the case where a modified cache block got evicted!
 	// Handle S -> M state
 	if transaction.SenderId == cc.id && transaction.TransactionType == xact.BusUpgr {
 		// Should have the same address (since the message is from the current sender itself (loopback))
@@ -231,9 +243,10 @@ func (cc *MesiCacheController) handleSnoopOtherCases(transaction xact.Transactio
 				cc.invalidateCache(transaction.Address, absoluteIndex)
 			}
 
-			// If the cache controller was waiting to flush already, then the cache controller
+			// If the cache controller was waiting to flush and the address to flush is equal to
+			// the address received in the snooped transaction, then the cache controller
 			// don't have to flush when it got the ownership of the bus since it will flush
-			// the data line now.
+			// the cache line now.
 			isWaitingToFlush := cc.state == WaitForBus &&
 				cc.currentTransaction.TransactionType == xact.Flush &&
 				cc.cache.isSameTag(cc.currentTransaction.Address, transaction.Address)
