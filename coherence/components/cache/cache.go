@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"fmt"
 	"math"
 	"time"
 
@@ -69,6 +70,27 @@ func (cacheDs *Cache) Insert(address uint32) (bool, uint32, int) {
 		return false, 0, -1
 	}
 
+	isToBeEvicted, evictedAddress, index := cacheDs.GetAddressToBeEvicted(address)
+
+	cacheDs.cacheArray[index] = CacheLine{
+		tag:       cacheDs.GetTag(address),
+		address:   address,
+		timestamp: time.Now().UnixNano(),
+	}
+
+	// This is needed to add some delay between two consecutive accesses, otherwise the test cases may fail some time
+	// as the time between two consecutive accesses would become the same
+	time.Sleep(time.Microsecond * 1)
+
+	return isToBeEvicted, evictedAddress, index
+}
+
+// This function is used for checking whether any cache line needs to be evicted if the given address is inserted
+// into the cache set.
+// bool -> true if the position that the given address should be inserted to already contains another address
+// uint32 -> the address of the address to be evicted if bool is true
+// int -> where the given address would be inserted to in the array
+func (cacheDs *Cache) GetAddressToBeEvicted(address uint32) (bool, uint32, int) {
 	index := cacheDs.getAbsoluteIndex(address, 0)
 	leastTimestamp := cacheDs.cacheArray[index].timestamp
 
@@ -82,20 +104,13 @@ func (cacheDs *Cache) Insert(address uint32) (bool, uint32, int) {
 		}
 	}
 
-	isToBeEvicted := cacheDs.cacheArray[index].timestamp != 0
-	evictedAddress := cacheDs.cacheArray[index].address
-
-	cacheDs.cacheArray[index] = CacheLine{
-		tag:       cacheDs.GetTag(address),
-		address:   address,
-		timestamp: time.Now().UnixNano(),
+	if leastTimestamp > 0 {
+		return true, cacheDs.cacheArray[index].address, int(index)
+	} else if leastTimestamp == 0 {
+		return false, 0, int(index)
+	} else {
+		panic(fmt.Sprintf("leastTimestamp is not 0 or positive! Value of timestamp: %d", leastTimestamp))
 	}
-
-	// This is needed to add some delay between two consecutive accesses, otherwise the test cases may fail some time
-	// as the time between two consecutive accesses would become the same
-	time.Sleep(time.Microsecond * 1)
-
-	return isToBeEvicted, evictedAddress, int(index)
 }
 
 // Access the cache line of the given address and update the cache line timestamp.

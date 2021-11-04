@@ -23,7 +23,8 @@ type Core struct {
 
 type CoreStats struct {
 	NumComputeCycles int
-	NumLoadStores    int
+	NumLoads         int
+	NumStores        int
 	NumIdleCycles    int
 }
 
@@ -91,11 +92,11 @@ func (core *Core) Execute() {
 		} else if inst.iType == loadOp {
 			core.cache.RequestRead(inst.value, core.OnRequestComplete)
 			core.state = MemoryState
-			core.stats.NumLoadStores++
+			core.stats.NumLoads++
 		} else if inst.iType == storeOp {
 			core.cache.RequestWrite(inst.value, core.OnRequestComplete)
 			core.state = MemoryState
-			core.stats.NumLoadStores++
+			core.stats.NumStores++
 		} else {
 			panic(errors.New("unknown operation type"))
 		}
@@ -110,7 +111,8 @@ func (core *Core) GetStatistics() stats.Stats {
 	cacheControllerStats := core.cache.GetStats()
 	return stats.Stats{
 		NumComputeCycles:         core.stats.NumComputeCycles,
-		NumLoadStores:            core.stats.NumLoadStores,
+		NumLoads:                 core.stats.NumLoads,
+		NumStores:                core.stats.NumStores,
 		NumIdleCycles:            core.stats.NumIdleCycles,
 		NumAccessesToPrivateData: cacheControllerStats.NumAccessesToPrivateData,
 		NumAccessesToSharedData:  cacheControllerStats.NumAccessesToSharedData,

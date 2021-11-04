@@ -13,7 +13,8 @@ type Transaction struct {
 type TransactionType int
 
 const (
-	BusRead TransactionType = iota
+	Nil TransactionType = iota // Nil value for transaction since struct can't be nil in Go.
+	BusRead
 	BusReadX
 	BusUpgr
 	MemReadDone

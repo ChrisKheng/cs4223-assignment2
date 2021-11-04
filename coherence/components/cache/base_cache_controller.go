@@ -32,6 +32,7 @@ const (
 	WaitForBus
 	WaitForRequestToComplete
 	WaitForWriteBack
+	WaitForEvictWriteBack
 )
 
 func NewBaseCache(id int, bus *bus.Bus, blockSize, associativity, cacheSize int) *BaseCacheController {
@@ -47,6 +48,7 @@ func (cc *BaseCacheController) Execute() {
 	if cc.needToReply {
 		cc.bus.Reply(cc.transactionToSendWhenReplying)
 		cc.needToReply = false
+		cc.transactionToSendWhenReplying = xact.Transaction{TransactionType: xact.Nil}
 	}
 
 	cc.iter++
@@ -61,6 +63,7 @@ func (cc *BaseCacheController) Execute() {
 			cc.isHoldingBus = false
 		}
 
+		cc.currentTransaction = xact.Transaction{TransactionType: xact.Nil}
 		cc.state = Ready
 	case RequestForBus:
 		cc.bus.RequestAccess(cc.OnBusAccessGranted)
@@ -70,8 +73,14 @@ func (cc *BaseCacheController) Execute() {
 
 func (cc *BaseCacheController) OnBusAccessGranted(timestamp time.Time) xact.Transaction {
 	cc.busAcquiredTimestamp = timestamp
-	cc.state = WaitForRequestToComplete
 	cc.isHoldingBus = true
+
+	if cc.currentTransaction.TransactionType != xact.Flush {
+		cc.state = WaitForRequestToComplete
+	} else {
+		cc.state = WaitForEvictWriteBack
+	}
+
 	return cc.currentTransaction
 }
 

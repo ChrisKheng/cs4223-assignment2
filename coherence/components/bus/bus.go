@@ -32,7 +32,9 @@ const (
 )
 
 type BusStats struct {
-	DataTraffic int
+	DataTraffic      int
+	NumInvalidations int
+	NumUpdates       int
 }
 
 func NewBus() *Bus {
@@ -54,7 +56,7 @@ func (b *Bus) Execute() {
 		b.requestBeingProcessed = transaction
 		b.onRequestGrantedFuncs = b.onRequestGrantedFuncs[1:]
 
-		b.transferData(int(transaction.SendDataSize))
+		b.transferDataAndRecordStats(transaction)
 		b.state = ProcessingRequest
 	case ProcessingRequest:
 		b.counter--
@@ -98,7 +100,8 @@ func (b *Bus) Reply(transaction xact.Transaction) {
 		panic(fmt.Sprintf("bus's reply() is called when bus is in %d state\n", b.state))
 	}
 
-	b.transferData(int(transaction.SendDataSize))
+	b.transferDataAndRecordStats(transaction)
+	b.recordStats(transaction)
 	b.replyToSend = transaction
 	b.state = ProcessingReply
 }
@@ -107,8 +110,16 @@ func (b *Bus) GetStatistics() BusStats {
 	return b.stats
 }
 
-func (b *Bus) transferData(dataSize int) {
+func (b *Bus) transferDataAndRecordStats(transaction xact.Transaction) {
 	// b.counter +1 to leave the send reply logic to Execute() cuz counter may be zero here if without +1.
-	b.stats.DataTraffic += dataSize * int(constants.WordSize)
-	b.counter = transferCycles*dataSize + 1
+	b.counter = transferCycles*(int(transaction.SendDataSize)) + 1
+	b.recordStats(transaction)
+}
+
+func (b *Bus) recordStats(transaction xact.Transaction) {
+	b.stats.DataTraffic += int(transaction.SendDataSize) * int(constants.WordSize)
+	switch transaction.TransactionType {
+	case xact.BusReadX, xact.BusUpgr:
+		b.stats.NumInvalidations++
+	}
 }
