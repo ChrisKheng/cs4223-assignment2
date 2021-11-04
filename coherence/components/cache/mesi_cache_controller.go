@@ -9,7 +9,8 @@ import (
 
 type MesiCacheController struct {
 	*BaseCacheController
-	cacheStates []MesiCacheState
+	xactToIssueAfterEvictWriteBack xact.Transaction
+	cacheStates                    []MesiCacheState
 }
 
 type MesiCacheState int
@@ -43,11 +44,24 @@ func (cc *MesiCacheController) RequestRead(address uint32, callback func()) {
 	} else {
 		cc.state = RequestForBus
 		cc.stats.NumCacheMisses++
-		cc.currentTransaction = xact.Transaction{
+		busReadXact := xact.Transaction{
 			TransactionType:   xact.BusRead,
 			Address:           address,
 			RequestedDataSize: cc.cache.blockSizeInWords,
 			SenderId:          cc.id,
+		}
+
+		isToBeEvicted, evictedAddress, index := cc.cache.GetAddressToBeEvicted(address)
+		if !isToBeEvicted || cc.cacheStates[index] != Modified {
+			cc.currentTransaction = busReadXact
+		} else {
+			cc.xactToIssueAfterEvictWriteBack = busReadXact
+			cc.currentTransaction = xact.Transaction{
+				TransactionType: xact.Flush,
+				Address:         evictedAddress,
+				SendDataSize:    cc.cache.blockSizeInWords,
+				SenderId:        cc.id,
+			}
 		}
 	}
 }
@@ -88,12 +102,36 @@ func (cc *MesiCacheController) RequestWrite(address uint32, callback func()) {
 
 func (cc *MesiCacheController) OnSnoop(transaction xact.Transaction) {
 	switch cc.state {
+	case WaitForEvictWriteBack:
+		cc.handleSnoopWaitForEvictWriteBack(transaction)
 	case WaitForRequestToComplete:
 		cc.handleSnoopWaitForRequestToComplete(transaction)
 	case WaitForWriteBack:
 		cc.handleSnoopWriteBack(transaction)
 	default:
 		cc.handleSnoopOtherCases(transaction)
+	}
+}
+
+func (cc *MesiCacheController) handleSnoopWaitForEvictWriteBack(transaction xact.Transaction) {
+	if transaction.SenderId == cc.id {
+		return
+	}
+
+	switch transaction.TransactionType {
+	case xact.MemWriteDone:
+		if transaction.Address != cc.currentTransaction.Address {
+			panic("address evicted for write back is not the same as the address received for memwritedone")
+		}
+
+		cc.transactionToSendWhenReplying = cc.xactToIssueAfterEvictWriteBack
+		cc.currentTransaction = cc.xactToIssueAfterEvictWriteBack
+		cc.xactToIssueAfterEvictWriteBack = xact.Transaction{TransactionType: xact.Nil}
+		cc.needToReply = true
+		cc.state = WaitForRequestToComplete
+	default:
+		panic(fmt.Sprintf("Xact of type %d is received when cache controller is waiting for evict write back",
+			transaction.TransactionType))
 	}
 }
 
@@ -120,6 +158,7 @@ func (cc *MesiCacheController) handleSnoopWaitForRequestToComplete(transaction x
 	}
 
 	if !cc.cache.isSameTag(transaction.Address, cc.currentTransaction.Address) {
+		fmt.Printf("iter: %d\n", cc.iter)
 		panic("tag of address received by cache controller is different than the tag of the requested address while waiting for read to complete")
 	}
 
@@ -191,6 +230,17 @@ func (cc *MesiCacheController) handleSnoopOtherCases(transaction xact.Transactio
 			} else {
 				cc.invalidateCache(transaction.Address, absoluteIndex)
 			}
+
+			// If the cache controller was waiting to flush already, then the cache controller
+			// don't have to flush when it got the ownership of the bus since it will flush
+			// the data line now.
+			isWaitingToFlush := cc.state == WaitForBus &&
+				cc.currentTransaction.TransactionType == xact.Flush &&
+				cc.cache.isSameTag(cc.currentTransaction.Address, transaction.Address)
+			if isWaitingToFlush {
+				cc.currentTransaction = cc.xactToIssueAfterEvictWriteBack
+				cc.xactToIssueAfterEvictWriteBack = xact.Transaction{TransactionType: xact.Nil}
+			}
 		}
 	case Exclusive:
 		switch transaction.TransactionType {
@@ -201,7 +251,7 @@ func (cc *MesiCacheController) handleSnoopOtherCases(transaction xact.Transactio
 				SendDataSize:    transaction.RequestedDataSize,
 				SenderId:        cc.id,
 			}
-			cc.needToReply = true // TODO: add this in execute()
+			cc.needToReply = true
 			if transaction.TransactionType == xact.BusRead {
 				cc.cacheStates[absoluteIndex] = Shared
 			} else {
