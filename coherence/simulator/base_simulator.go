@@ -43,11 +43,15 @@ func (s *BaseSimulator) Run() {
 		coreStats = append(coreStats, s.cores[i].GetStatistics())
 	}
 
+	busStats := s.bus.GetStatistics()
 	otherStats := stats.OtherStats{
-		DataTrafficOnBus: s.bus.GetStatistics().DataTraffic,
+		DataTrafficOnBus: busStats.DataTraffic,
+		NumInvalidations: busStats.NumInvalidations,
+		NumUpdates:       busStats.NumUpdates,
 	}
 
 	stats.PrintStatistics(elapsed, coreStats, otherStats)
+	stats.PrintStatisticsCsv(elapsed, coreStats, otherStats)
 }
 
 func (s *BaseSimulator) isAllCoresDone() bool {
