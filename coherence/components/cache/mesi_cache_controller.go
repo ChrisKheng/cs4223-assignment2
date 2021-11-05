@@ -275,17 +275,6 @@ func (cc *MesiCacheController) handleSnoopOtherCases(transaction xact.Transactio
 		}
 	case Shared:
 		switch transaction.TransactionType {
-		case xact.BusRead, xact.BusReadX:
-			cc.transactionToSendWhenReplying = xact.Transaction{
-				TransactionType: xact.FlushOpt,
-				Address:         transaction.Address,
-				SendDataSize:    transaction.RequestedDataSize,
-				SenderId:        cc.id,
-			}
-			cc.needToReply = true
-		}
-
-		switch transaction.TransactionType {
 		case xact.BusReadX, xact.BusUpgr:
 			needToChangeTransaction := cc.state == WaitForBus && cc.currentTransaction.TransactionType == xact.BusUpgr && cc.cache.isSameTag(cc.currentTransaction.Address, transaction.Address)
 			if needToChangeTransaction {
