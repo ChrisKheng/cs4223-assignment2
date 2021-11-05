@@ -23,6 +23,10 @@ const (
 	mesifForward
 )
 
+func (c mesifCacheState) string() string {
+	return [...]string{"Invalid", "Modified", "Exclusive", "Shared", "Forward"}[c]
+}
+
 func NewMesifCache(id int, bus *bus.Bus, blockSize, associativity, cacheSize int) *MesifCacheController {
 	mesifCC := &MesifCacheController{
 		BaseCacheController: NewBaseCache(id, bus, blockSize, associativity, cacheSize),
@@ -79,7 +83,7 @@ func (cc *MesifCacheController) RequestWrite(address uint32, callback func()) {
 		case mesifExclusive:
 			cc.state = CacheHit
 			cc.cacheStates[index] = mesifModified
-		case mesifShared:
+		case mesifShared, mesifForward:
 			cc.state = RequestForBus
 			cc.currentTransaction = xact.Transaction{
 				TransactionType: xact.BusUpgr,
@@ -150,7 +154,7 @@ func (cc *MesifCacheController) handleSnoopWaitForEvictWriteBack(transaction xac
 }
 
 func (cc *MesifCacheController) handleSnoopWaitForRequestToComplete(transaction xact.Transaction) {
-	// Handle S -> M state
+	// Handle S/F -> M state
 	if transaction.SenderId == cc.id && transaction.TransactionType == xact.BusUpgr {
 		// Should have the same address (since the message is from the current sender itself (loopback))
 		if transaction.Address != cc.currentTransaction.Address {
@@ -182,14 +186,14 @@ func (cc *MesifCacheController) handleSnoopWaitForRequestToComplete(transaction 
 	case xact.BusRead:
 		if transaction.TransactionType == xact.Flush {
 			cc.state = WaitForWriteBack
-			cc.cacheStates[absoluteIndex] = mesifShared
+			cc.cacheStates[absoluteIndex] = mesifForward
 			cc.stats.NumAccessesToPrivateData++
 		} else if transaction.TransactionType == xact.MemReadDone || transaction.TransactionType == xact.FlushOpt {
 			cc.state = CacheHit
 			if transaction.TransactionType == xact.MemReadDone {
 				cc.cacheStates[absoluteIndex] = mesifExclusive
 			} else if transaction.TransactionType == xact.FlushOpt {
-				cc.cacheStates[absoluteIndex] = mesifShared
+				cc.cacheStates[absoluteIndex] = mesifForward
 				cc.stats.NumAccessesToSharedData++
 			}
 		} else {
@@ -257,6 +261,8 @@ func (cc *MesifCacheController) handleSnoopOtherCases(transaction xact.Transacti
 				cc.currentTransaction = cc.xactToIssueAfterEvictWriteBack
 				cc.xactToIssueAfterEvictWriteBack = xact.Transaction{TransactionType: xact.Nil}
 			}
+		default:
+			panic(getPanicMsgCacheState(transaction, mesifModified))
 		}
 	case mesifExclusive:
 		switch transaction.TransactionType {
@@ -273,15 +279,49 @@ func (cc *MesifCacheController) handleSnoopOtherCases(transaction xact.Transacti
 			} else {
 				cc.invalidateCache(transaction.Address, absoluteIndex)
 			}
+		default:
+			panic(getPanicMsgCacheState(transaction, mesifExclusive))
 		}
 	case mesifShared:
 		switch transaction.TransactionType {
 		case xact.BusReadX, xact.BusUpgr:
-			needToChangeTransaction := cc.state == WaitForBus && cc.currentTransaction.TransactionType == xact.BusUpgr && cc.cache.isSameTag(cc.currentTransaction.Address, transaction.Address)
+			needToChangeTransaction := cc.isUpgradingSameTag(transaction.Address)
 			if needToChangeTransaction {
 				cc.currentTransaction = xact.Transaction{
 					TransactionType:   xact.BusReadX,
-					Address:           transaction.Address,
+					Address:           cc.currentTransaction.Address,
+					RequestedDataSize: cc.cache.blockSizeInWords,
+					SenderId:          cc.id,
+				}
+			}
+			cc.invalidateCache(transaction.Address, absoluteIndex)
+		case xact.Flush:
+			panic(getPanicMsgCacheState(transaction, mesifShared))
+		}
+	case mesifForward:
+		switch transaction.TransactionType {
+		case xact.BusRead, xact.BusReadX:
+			cc.transactionToSendWhenReplying = xact.Transaction{
+				TransactionType: xact.FlushOpt,
+				Address:         transaction.Address,
+				SendDataSize:    transaction.RequestedDataSize,
+				SenderId:        cc.id,
+			}
+			cc.needToReply = true
+			if transaction.TransactionType == xact.BusRead {
+				cc.cacheStates[absoluteIndex] = mesifShared
+			}
+		case xact.Flush, xact.MemWriteDone, xact.MemReadDone:
+			panic(getPanicMsgCacheState(transaction, mesifForward))
+		}
+
+		switch transaction.TransactionType {
+		case xact.BusReadX, xact.BusUpgr:
+			needToChangeTransaction := cc.isUpgradingSameTag(transaction.Address)
+			if needToChangeTransaction {
+				cc.currentTransaction = xact.Transaction{
+					TransactionType:   xact.BusReadX,
+					Address:           cc.currentTransaction.Address,
 					RequestedDataSize: cc.cache.blockSizeInWords,
 					SenderId:          cc.id,
 				}
@@ -294,4 +334,12 @@ func (cc *MesifCacheController) handleSnoopOtherCases(transaction xact.Transacti
 func (cc *MesifCacheController) invalidateCache(address uint32, absoluteIndex int) {
 	cc.cacheStates[absoluteIndex] = mesifInvalid
 	cc.cache.Evict(address)
+}
+
+func (cc *MesifCacheController) isUpgradingSameTag(address uint32) bool {
+	return cc.state == WaitForBus && cc.currentTransaction.TransactionType == xact.BusUpgr && cc.cache.isSameTag(cc.currentTransaction.Address, address)
+}
+
+func getPanicMsgCacheState(transaction xact.Transaction, state mesifCacheState) string {
+	return fmt.Sprintf("xact of type %d is received when cache is in %s state", transaction.TransactionType, state.string())
 }
