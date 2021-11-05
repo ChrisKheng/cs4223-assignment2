@@ -7,5 +7,6 @@ type CacheController interface {
 	RequestRead(address uint32, callback func())
 	RequestWrite(address uint32, callback func())
 	OnSnoop(transaction xact.Transaction)
+	HasCopy(address uint32) bool
 	GetStats() CacheControllerStats
 }

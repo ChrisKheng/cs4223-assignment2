@@ -14,6 +14,7 @@ type Bus struct {
 	state                 BusState
 	onRequestGrantedFuncs []xact.OnRequestGrantedCallBack
 	snoopingCallBacks     []xact.SnoopingCallBack
+	hasCopyCallBacks      []xact.HasCopyCallBack
 	counter               int
 	requestBeingProcessed xact.Transaction
 	replyToSend           xact.Transaction
@@ -104,6 +105,19 @@ func (b *Bus) Reply(transaction xact.Transaction) {
 	b.recordStats(transaction)
 	b.replyToSend = transaction
 	b.state = ProcessingReply
+}
+
+func (b *Bus) RegisterHasCopy(callback xact.HasCopyCallBack) {
+	b.hasCopyCallBacks = append(b.hasCopyCallBacks, callback)
+}
+
+func (b *Bus) CheckHasCopy(address uint32) bool {
+	for i := range b.hasCopyCallBacks {
+		if b.hasCopyCallBacks[i](address) {
+			return true
+		}
+	}
+	return false
 }
 
 func (b *Bus) GetStatistics() BusStats {

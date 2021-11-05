@@ -189,23 +189,24 @@ func (cc *MesifCacheController) handleSnoopWaitForRequestToComplete(transaction 
 
 	switch cc.currentTransaction.TransactionType {
 	case xact.BusRead:
+		if cc.bus.CheckHasCopy(cc.currentTransaction.Address) {
+			cc.cacheStates[absoluteIndex] = mesifForward
+		} else {
+			cc.cacheStates[absoluteIndex] = mesifExclusive
+		}
+
 		if transaction.TransactionType == xact.Flush {
 			cc.state = WaitForWriteBack
-			cc.cacheStates[absoluteIndex] = mesifForward
 			cc.stats.NumAccessesToPrivateData++
 		} else if transaction.TransactionType == xact.MemReadDone || transaction.TransactionType == xact.FlushOpt {
 			cc.state = CacheHit
-			if transaction.TransactionType == xact.MemReadDone {
-				cc.cacheStates[absoluteIndex] = mesifExclusive
-			} else if transaction.TransactionType == xact.FlushOpt {
-				cc.cacheStates[absoluteIndex] = mesifForward
+			if transaction.TransactionType == xact.FlushOpt {
 				cc.stats.NumAccessesToSharedData++
 			}
 		} else {
 			panic(fmt.Sprintf("transaction of type %d was received when cache controller is waiting for BusRead result", transaction.TransactionType))
 		}
 	case xact.BusReadX:
-		// fmt.Printf("iter: %d\n", cc.iter)
 		cc.cacheStates[absoluteIndex] = mesifModified
 		cc.busUpgrGotCancelled = false
 		if transaction.TransactionType == xact.Flush {
