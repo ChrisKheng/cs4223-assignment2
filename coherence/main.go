@@ -6,6 +6,7 @@ import (
 
 	"github.com/chriskheng/cs4223-assignment2/coherence/dragon"
 	"github.com/chriskheng/cs4223-assignment2/coherence/mesi"
+	"github.com/chriskheng/cs4223-assignment2/coherence/mesif"
 	"github.com/chriskheng/cs4223-assignment2/coherence/parser"
 	"github.com/chriskheng/cs4223-assignment2/coherence/simulator"
 )
@@ -24,8 +25,10 @@ func main() {
 	var sim simulator.Simulator
 	if inputParser.Protocol == parser.Mesi {
 		sim = mesi.NewMesiSimulator(inputParser.InputFileName, inputParser.CacheSize, inputParser.CacheAssociativity, inputParser.CacheBlockSize)
-	} else {
+	} else if inputParser.Protocol == parser.Dragon {
 		sim = dragon.NewDragonSimulator(inputParser.InputFileName, inputParser.CacheSize, inputParser.CacheAssociativity, inputParser.CacheBlockSize)
+	} else {
+		sim = mesif.NewMesifSimulator(inputParser.InputFileName, inputParser.CacheSize, inputParser.CacheAssociativity, inputParser.CacheBlockSize)
 	}
 
 	sim.Run()

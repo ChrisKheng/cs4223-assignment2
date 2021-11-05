@@ -13,6 +13,7 @@ type CCProtocol int
 
 const (
 	Mesi CCProtocol = iota
+	Mesif
 	Dragon
 )
 
@@ -62,6 +63,8 @@ func (p *InputParser) parseProtocol(protocol string) (CCProtocol, error) {
 		return Mesi, nil
 	case "Dragon":
 		return Dragon, nil
+	case "MESIF":
+		return Mesif, nil
 	default:
 		return -1, errors.New("invalid protocol")
 	}
