@@ -11,7 +11,7 @@ then
     exit 1
 fi
 
-output_dir="../experiment/associativity/${benchmark_name}"
+output_dir="../experiment/${protocol}/associativity/${benchmark_name}"
 benchmark_dir="../benchmarks/${benchmark_name}_four/${benchmark_name}"
 
 mkdir -p $output_dir
