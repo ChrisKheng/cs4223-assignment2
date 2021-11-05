@@ -11,6 +11,8 @@ type MesifCacheController struct {
 	*BaseCacheController
 	xactToIssueAfterEvictWriteBack xact.Transaction
 	cacheStates                    []mesifCacheState
+	busUpgrGotCancelled            bool
+	addressCancelled               uint32
 }
 
 type mesifCacheState int
@@ -85,6 +87,7 @@ func (cc *MesifCacheController) RequestWrite(address uint32, callback func()) {
 			cc.cacheStates[index] = mesifModified
 		case mesifShared, mesifForward:
 			cc.state = RequestForBus
+			cc.busUpgrGotCancelled = false
 			cc.currentTransaction = xact.Transaction{
 				TransactionType: xact.BusUpgr,
 				Address:         address,
@@ -142,6 +145,8 @@ func (cc *MesifCacheController) handleSnoopWaitForEvictWriteBack(transaction xac
 			panic("address evicted for write back is not the same as the address received for memwritedone")
 		}
 
+		cc.cache.Evict(cc.currentTransaction.Address)
+
 		cc.transactionToSendWhenReplying = cc.xactToIssueAfterEvictWriteBack
 		cc.currentTransaction = cc.xactToIssueAfterEvictWriteBack
 		cc.xactToIssueAfterEvictWriteBack = xact.Transaction{TransactionType: xact.Nil}
@@ -175,7 +180,7 @@ func (cc *MesifCacheController) handleSnoopWaitForRequestToComplete(transaction 
 	}
 
 	// only for reply cases
-	if !cc.cache.isSameTag(transaction.Address, cc.currentTransaction.Address) {
+	if !cc.cache.isSamePrefix(transaction.Address, cc.currentTransaction.Address) {
 		fmt.Printf("iter: %d\n", cc.iter)
 		panic("tag of address received by cache controller is different than the tag of the requested address while waiting for read to complete")
 	}
@@ -200,7 +205,9 @@ func (cc *MesifCacheController) handleSnoopWaitForRequestToComplete(transaction 
 			panic(fmt.Sprintf("transaction of type %d was received when cache controller is waiting for BusRead result", transaction.TransactionType))
 		}
 	case xact.BusReadX:
+		// fmt.Printf("iter: %d\n", cc.iter)
 		cc.cacheStates[absoluteIndex] = mesifModified
+		cc.busUpgrGotCancelled = false
 		if transaction.TransactionType == xact.Flush {
 			cc.state = WaitForWriteBack
 			cc.stats.NumAccessesToPrivateData++
@@ -219,7 +226,7 @@ func (cc *MesifCacheController) handleSnoopWaitForRequestToComplete(transaction 
 func (cc *MesifCacheController) handleSnoopWriteBack(transaction xact.Transaction) {
 	if transaction.TransactionType != xact.MemWriteDone {
 		panic(fmt.Sprintf("transaction of type %d is received when cache controller %d is waiting for writeback, sender id: %d", transaction.TransactionType, cc.id, transaction.SenderId))
-	} else if !cc.cache.isSameTag(transaction.Address, cc.currentTransaction.Address) {
+	} else if !cc.cache.isSamePrefix(transaction.Address, cc.currentTransaction.Address) {
 		panic("tag of address written is not equal to the tag of address requested by cache controller")
 	}
 
@@ -256,7 +263,7 @@ func (cc *MesifCacheController) handleSnoopOtherCases(transaction xact.Transacti
 			// the cache line now.
 			isWaitingToFlush := cc.state == WaitForBus &&
 				cc.currentTransaction.TransactionType == xact.Flush &&
-				cc.cache.isSameTag(cc.currentTransaction.Address, transaction.Address)
+				cc.cache.isSamePrefix(cc.currentTransaction.Address, transaction.Address)
 			if isWaitingToFlush {
 				cc.currentTransaction = cc.xactToIssueAfterEvictWriteBack
 				cc.xactToIssueAfterEvictWriteBack = xact.Transaction{TransactionType: xact.Nil}
@@ -285,8 +292,10 @@ func (cc *MesifCacheController) handleSnoopOtherCases(transaction xact.Transacti
 	case mesifShared:
 		switch transaction.TransactionType {
 		case xact.BusReadX, xact.BusUpgr:
-			needToChangeTransaction := cc.isUpgradingSameTag(transaction.Address)
+			needToChangeTransaction := cc.isUpgradingSamePrefix(transaction.Address)
 			if needToChangeTransaction {
+				cc.busUpgrGotCancelled = true
+				cc.addressCancelled = cc.currentTransaction.Address
 				cc.currentTransaction = xact.Transaction{
 					TransactionType:   xact.BusReadX,
 					Address:           cc.currentTransaction.Address,
@@ -317,8 +326,10 @@ func (cc *MesifCacheController) handleSnoopOtherCases(transaction xact.Transacti
 
 		switch transaction.TransactionType {
 		case xact.BusReadX, xact.BusUpgr:
-			needToChangeTransaction := cc.isUpgradingSameTag(transaction.Address)
+			needToChangeTransaction := cc.isUpgradingSamePrefix(transaction.Address)
 			if needToChangeTransaction {
+				cc.busUpgrGotCancelled = true
+				cc.addressCancelled = cc.currentTransaction.Address
 				cc.currentTransaction = xact.Transaction{
 					TransactionType:   xact.BusReadX,
 					Address:           cc.currentTransaction.Address,
@@ -336,8 +347,8 @@ func (cc *MesifCacheController) invalidateCache(address uint32, absoluteIndex in
 	cc.cache.Evict(address)
 }
 
-func (cc *MesifCacheController) isUpgradingSameTag(address uint32) bool {
-	return cc.state == WaitForBus && cc.currentTransaction.TransactionType == xact.BusUpgr && cc.cache.isSameTag(cc.currentTransaction.Address, address)
+func (cc *MesifCacheController) isUpgradingSamePrefix(address uint32) bool {
+	return cc.state == WaitForBus && cc.currentTransaction.TransactionType == xact.BusUpgr && cc.cache.isSamePrefix(cc.currentTransaction.Address, address)
 }
 
 func getPanicMsgCacheState(transaction xact.Transaction, state mesifCacheState) string {

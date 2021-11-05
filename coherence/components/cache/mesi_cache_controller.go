@@ -170,9 +170,9 @@ func (cc *MesiCacheController) handleSnoopWaitForRequestToComplete(transaction x
 	}
 
 	// only for reply cases
-	if !cc.cache.isSameTag(transaction.Address, cc.currentTransaction.Address) {
+	if !cc.cache.isSamePrefix(transaction.Address, cc.currentTransaction.Address) {
 		fmt.Printf("iter: %d\n", cc.iter)
-		panic("tag of address received by cache controller is different than the tag of the requested address while waiting for read to complete")
+		panic("Prefix of address received by cache controller is different than the prefix of the requested address while waiting for read to complete")
 	}
 
 	_, _, absoluteIndex := cc.cache.Insert(cc.currentTransaction.Address)
@@ -214,7 +214,7 @@ func (cc *MesiCacheController) handleSnoopWaitForRequestToComplete(transaction x
 func (cc *MesiCacheController) handleSnoopWriteBack(transaction xact.Transaction) {
 	if transaction.TransactionType != xact.MemWriteDone {
 		panic(fmt.Sprintf("transaction of type %d is received when cache controller %d is waiting for writeback, sender id: %d", transaction.TransactionType, cc.id, transaction.SenderId))
-	} else if !cc.cache.isSameTag(transaction.Address, cc.currentTransaction.Address) {
+	} else if !cc.cache.isSamePrefix(transaction.Address, cc.currentTransaction.Address) {
 		panic("tag of address written is not equal to the tag of address requested by cache controller")
 	}
 
@@ -251,7 +251,7 @@ func (cc *MesiCacheController) handleSnoopOtherCases(transaction xact.Transactio
 			// the cache line now.
 			isWaitingToFlush := cc.state == WaitForBus &&
 				cc.currentTransaction.TransactionType == xact.Flush &&
-				cc.cache.isSameTag(cc.currentTransaction.Address, transaction.Address)
+				cc.cache.isSamePrefix(cc.currentTransaction.Address, transaction.Address)
 			if isWaitingToFlush {
 				cc.currentTransaction = cc.xactToIssueAfterEvictWriteBack
 				cc.xactToIssueAfterEvictWriteBack = xact.Transaction{TransactionType: xact.Nil}
@@ -276,7 +276,7 @@ func (cc *MesiCacheController) handleSnoopOtherCases(transaction xact.Transactio
 	case mesiShared:
 		switch transaction.TransactionType {
 		case xact.BusReadX, xact.BusUpgr:
-			needToChangeTransaction := cc.state == WaitForBus && cc.currentTransaction.TransactionType == xact.BusUpgr && cc.cache.isSameTag(cc.currentTransaction.Address, transaction.Address)
+			needToChangeTransaction := cc.state == WaitForBus && cc.currentTransaction.TransactionType == xact.BusUpgr && cc.cache.isSamePrefix(cc.currentTransaction.Address, transaction.Address)
 			if needToChangeTransaction {
 				cc.currentTransaction = xact.Transaction{
 					TransactionType:   xact.BusReadX,
