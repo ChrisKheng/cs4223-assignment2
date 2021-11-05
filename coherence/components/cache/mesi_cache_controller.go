@@ -10,16 +10,16 @@ import (
 type MesiCacheController struct {
 	*BaseCacheController
 	xactToIssueAfterEvictWriteBack xact.Transaction
-	cacheStates                    []MesiCacheState
+	cacheStates                    []mesiCacheState
 }
 
-type MesiCacheState int
+type mesiCacheState int
 
 const (
-	Invalid MesiCacheState = iota // Put Invalid as first state just in case we forgot to initialise the state.
-	Modified
-	Exclusive
-	Shared
+	mesiInvalid mesiCacheState = iota // Put Invalid as first state just in case we forgot to initialise the state.
+	mesiModified
+	mesiExclusive
+	mesiShared
 )
 
 func NewMesiCache(id int, bus *bus.Bus, blockSize, associativity, cacheSize int) *MesiCacheController {
@@ -27,9 +27,9 @@ func NewMesiCache(id int, bus *bus.Bus, blockSize, associativity, cacheSize int)
 		BaseCacheController: NewBaseCache(id, bus, blockSize, associativity, cacheSize),
 	}
 
-	mesiCC.cacheStates = make([]MesiCacheState, len(mesiCC.cache.cacheArray))
+	mesiCC.cacheStates = make([]mesiCacheState, len(mesiCC.cache.cacheArray))
 	for i := range mesiCC.cacheStates {
-		mesiCC.cacheStates[i] = Invalid
+		mesiCC.cacheStates[i] = mesiInvalid
 	}
 
 	bus.RegisterSnoopingCallBack(mesiCC.OnSnoop)
@@ -52,7 +52,7 @@ func (cc *MesiCacheController) RequestRead(address uint32, callback func()) {
 		}
 
 		isToBeEvicted, evictedAddress, index := cc.cache.GetAddressToBeEvicted(address)
-		if !isToBeEvicted || cc.cacheStates[index] != Modified {
+		if !isToBeEvicted || cc.cacheStates[index] != mesiModified {
 			cc.currentTransaction = busReadXact
 		} else {
 			cc.xactToIssueAfterEvictWriteBack = busReadXact
@@ -73,12 +73,12 @@ func (cc *MesiCacheController) RequestWrite(address uint32, callback func()) {
 		index := cc.cache.GetIndexInArray(address)
 		state := cc.cacheStates[index]
 		switch state {
-		case Modified:
+		case mesiModified:
 			cc.state = CacheHit
-		case Exclusive:
+		case mesiExclusive:
 			cc.state = CacheHit
-			cc.cacheStates[index] = Modified
-		case Shared:
+			cc.cacheStates[index] = mesiModified
+		case mesiShared:
 			cc.state = RequestForBus
 			cc.currentTransaction = xact.Transaction{
 				TransactionType: xact.BusUpgr,
@@ -99,7 +99,7 @@ func (cc *MesiCacheController) RequestWrite(address uint32, callback func()) {
 		}
 
 		isToBeEvicted, evictedAddress, index := cc.cache.GetAddressToBeEvicted(address)
-		if !isToBeEvicted || cc.cacheStates[index] != Modified {
+		if !isToBeEvicted || cc.cacheStates[index] != mesiModified {
 			cc.currentTransaction = busReadXXact
 		} else {
 			cc.xactToIssueAfterEvictWriteBack = busReadXXact
@@ -161,7 +161,7 @@ func (cc *MesiCacheController) handleSnoopWaitForRequestToComplete(transaction x
 			panic(fmt.Sprintf("index returned is -1, current iter %d", cc.iter))
 		}
 
-		cc.cacheStates[index] = Modified
+		cc.cacheStates[index] = mesiModified
 		return
 	}
 
@@ -181,21 +181,21 @@ func (cc *MesiCacheController) handleSnoopWaitForRequestToComplete(transaction x
 	case xact.BusRead:
 		if transaction.TransactionType == xact.Flush {
 			cc.state = WaitForWriteBack
-			cc.cacheStates[absoluteIndex] = Shared
+			cc.cacheStates[absoluteIndex] = mesiShared
 			cc.stats.NumAccessesToPrivateData++
 		} else if transaction.TransactionType == xact.MemReadDone || transaction.TransactionType == xact.FlushOpt {
 			cc.state = CacheHit
 			if transaction.TransactionType == xact.MemReadDone {
-				cc.cacheStates[absoluteIndex] = Exclusive
+				cc.cacheStates[absoluteIndex] = mesiExclusive
 			} else if transaction.TransactionType == xact.FlushOpt {
-				cc.cacheStates[absoluteIndex] = Shared
+				cc.cacheStates[absoluteIndex] = mesiShared
 				cc.stats.NumAccessesToSharedData++
 			}
 		} else {
 			panic(fmt.Sprintf("transaction of type %d was received when cache controller is waiting for BusRead result", transaction.TransactionType))
 		}
 	case xact.BusReadX:
-		cc.cacheStates[absoluteIndex] = Modified
+		cc.cacheStates[absoluteIndex] = mesiModified
 		if transaction.TransactionType == xact.Flush {
 			cc.state = WaitForWriteBack
 			cc.stats.NumAccessesToPrivateData++
@@ -229,7 +229,7 @@ func (cc *MesiCacheController) handleSnoopOtherCases(transaction xact.Transactio
 	absoluteIndex := cc.cache.GetIndexInArray(transaction.Address)
 
 	switch cc.cacheStates[absoluteIndex] {
-	case Modified:
+	case mesiModified:
 		switch transaction.TransactionType {
 		case xact.BusRead, xact.BusReadX:
 			cc.transactionToSendWhenReplying = xact.Transaction{
@@ -240,7 +240,7 @@ func (cc *MesiCacheController) handleSnoopOtherCases(transaction xact.Transactio
 			}
 			cc.needToReply = true
 			if transaction.TransactionType == xact.BusRead {
-				cc.cacheStates[absoluteIndex] = Shared
+				cc.cacheStates[absoluteIndex] = mesiShared
 			} else {
 				cc.invalidateCache(transaction.Address, absoluteIndex)
 			}
@@ -257,7 +257,7 @@ func (cc *MesiCacheController) handleSnoopOtherCases(transaction xact.Transactio
 				cc.xactToIssueAfterEvictWriteBack = xact.Transaction{TransactionType: xact.Nil}
 			}
 		}
-	case Exclusive:
+	case mesiExclusive:
 		switch transaction.TransactionType {
 		case xact.BusRead, xact.BusReadX:
 			cc.transactionToSendWhenReplying = xact.Transaction{
@@ -268,12 +268,12 @@ func (cc *MesiCacheController) handleSnoopOtherCases(transaction xact.Transactio
 			}
 			cc.needToReply = true
 			if transaction.TransactionType == xact.BusRead {
-				cc.cacheStates[absoluteIndex] = Shared
+				cc.cacheStates[absoluteIndex] = mesiShared
 			} else {
 				cc.invalidateCache(transaction.Address, absoluteIndex)
 			}
 		}
-	case Shared:
+	case mesiShared:
 		switch transaction.TransactionType {
 		case xact.BusReadX, xact.BusUpgr:
 			needToChangeTransaction := cc.state == WaitForBus && cc.currentTransaction.TransactionType == xact.BusUpgr && cc.cache.isSameTag(cc.currentTransaction.Address, transaction.Address)
@@ -291,6 +291,6 @@ func (cc *MesiCacheController) handleSnoopOtherCases(transaction xact.Transactio
 }
 
 func (cc *MesiCacheController) invalidateCache(address uint32, absoluteIndex int) {
-	cc.cacheStates[absoluteIndex] = Invalid
+	cc.cacheStates[absoluteIndex] = mesiInvalid
 	cc.cache.Evict(address)
 }
