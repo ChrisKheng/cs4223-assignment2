@@ -22,6 +22,10 @@ const (
 	mesiShared
 )
 
+func (c mesiCacheState) string() string {
+	return [...]string{"Invalid", "Modified", "Exclusive", "Shared"}[c]
+}
+
 func NewMesiCache(id int, bus *bus.Bus, blockSize, associativity, cacheSize int) *MesiCacheController {
 	mesiCC := &MesiCacheController{
 		BaseCacheController: NewBaseCache(id, bus, blockSize, associativity, cacheSize),
@@ -179,16 +183,18 @@ func (cc *MesiCacheController) handleSnoopWaitForRequestToComplete(transaction x
 
 	switch cc.currentTransaction.TransactionType {
 	case xact.BusRead:
+		if cc.bus.CheckHasCopy(cc.currentTransaction.Address) {
+			cc.cacheStates[absoluteIndex] = mesiShared
+		} else {
+			cc.cacheStates[absoluteIndex] = mesiExclusive
+		}
+
 		if transaction.TransactionType == xact.Flush {
 			cc.state = WaitForWriteBack
-			cc.cacheStates[absoluteIndex] = mesiShared
 			cc.stats.NumAccessesToPrivateData++
 		} else if transaction.TransactionType == xact.MemReadDone || transaction.TransactionType == xact.FlushOpt {
 			cc.state = CacheHit
-			if transaction.TransactionType == xact.MemReadDone {
-				cc.cacheStates[absoluteIndex] = mesiExclusive
-			} else if transaction.TransactionType == xact.FlushOpt {
-				cc.cacheStates[absoluteIndex] = mesiShared
+			if transaction.TransactionType == xact.FlushOpt {
 				cc.stats.NumAccessesToSharedData++
 			}
 		} else {
@@ -256,6 +262,8 @@ func (cc *MesiCacheController) handleSnoopOtherCases(transaction xact.Transactio
 				cc.currentTransaction = cc.xactToIssueAfterEvictWriteBack
 				cc.xactToIssueAfterEvictWriteBack = xact.Transaction{TransactionType: xact.Nil}
 			}
+		default:
+			panic(getPanicMsgMesiCacheState(transaction, mesiModified))
 		}
 	case mesiExclusive:
 		switch transaction.TransactionType {
@@ -272,6 +280,8 @@ func (cc *MesiCacheController) handleSnoopOtherCases(transaction xact.Transactio
 			} else {
 				cc.invalidateCache(transaction.Address, absoluteIndex)
 			}
+		default:
+			panic(getPanicMsgMesiCacheState(transaction, mesiExclusive))
 		}
 	case mesiShared:
 		switch transaction.TransactionType {
@@ -286,6 +296,8 @@ func (cc *MesiCacheController) handleSnoopOtherCases(transaction xact.Transactio
 				}
 			}
 			cc.invalidateCache(transaction.Address, absoluteIndex)
+		case xact.Flush:
+			panic(getPanicMsgMesiCacheState(transaction, mesiShared))
 		}
 	}
 }
@@ -293,4 +305,8 @@ func (cc *MesiCacheController) handleSnoopOtherCases(transaction xact.Transactio
 func (cc *MesiCacheController) invalidateCache(address uint32, absoluteIndex int) {
 	cc.cacheStates[absoluteIndex] = mesiInvalid
 	cc.cache.Evict(address)
+}
+
+func getPanicMsgMesiCacheState(transaction xact.Transaction, state mesiCacheState) string {
+	return fmt.Sprintf("xact of type %d is received when cache is in %s state", transaction.TransactionType, state.string())
 }
