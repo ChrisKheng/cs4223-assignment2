@@ -1,3 +1,6 @@
+/*
+Package bus implements a Bus structure which simulates a Bus in a multi-core processor environment.
+*/
 package bus
 
 import (

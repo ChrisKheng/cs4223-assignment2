@@ -1,3 +1,6 @@
+/*
+Package stats implements methods for printing formatted program statistics.
+*/
 package stats
 
 import (

@@ -1,3 +1,6 @@
+/*
+Package dragon implements a DragonSimulator struct to simulate Dragon Cache Coherence Protocol.
+*/
 package dragon
 
 import (

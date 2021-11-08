@@ -1,3 +1,6 @@
+/*
+Package parser implements an InputParser struct to parse user-given arguments.
+*/
 package parser
 
 import (

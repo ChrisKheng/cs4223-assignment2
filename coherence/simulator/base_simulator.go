@@ -1,3 +1,7 @@
+/*
+Package simulator implements a BaseSimulator struct that contain common attributes and methods needed for the specific
+type of cache coherence protocol simulator.
+*/
 package simulator
 
 import (

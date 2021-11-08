@@ -1,3 +1,11 @@
+/*
+Package cache implements:
+* a Cache struct to simulate a processor cache
+* a CacheController type struct to simulate a processor cache controller.
+
+CacheController has a base type called BaseCacheController. It is embedded in specialised CacheController type
+developed for simulating a particular cache coherence protocol, e.g. MesiCacheController.
+*/
 package cache
 
 import (

@@ -1,3 +1,6 @@
+/*
+Package mesif implements a MesifSimulator struct to simulate MESIF Cache Coherence Protocol.
+*/
 package mesif
 
 import (

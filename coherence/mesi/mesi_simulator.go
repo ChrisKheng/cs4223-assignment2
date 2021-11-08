@@ -1,3 +1,6 @@
+/*
+Package mesi implements a MesiSimulator struct to simulate MESI Cache Coherence Protocol.
+*/
 package mesi
 
 import (
