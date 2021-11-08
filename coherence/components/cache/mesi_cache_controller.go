@@ -179,11 +179,12 @@ func (cc *MesiCacheController) handleSnoopWaitForRequestToComplete(transaction x
 		panic("Prefix of address received by cache controller is different than the prefix of the requested address while waiting for read to complete")
 	}
 
+	hasCopy := cc.bus.CheckHasCopy(cc.currentTransaction.Address)
 	_, _, absoluteIndex := cc.cache.Insert(cc.currentTransaction.Address)
 
 	switch cc.currentTransaction.TransactionType {
 	case xact.BusRead:
-		if cc.bus.CheckHasCopy(cc.currentTransaction.Address) {
+		if hasCopy {
 			cc.cacheStates[absoluteIndex] = mesiShared
 		} else {
 			cc.cacheStates[absoluteIndex] = mesiExclusive

@@ -185,11 +185,12 @@ func (cc *MesifCacheController) handleSnoopWaitForRequestToComplete(transaction 
 		panic("tag of address received by cache controller is different than the tag of the requested address while waiting for read to complete")
 	}
 
+	hasCopy := cc.bus.CheckHasCopy(cc.currentTransaction.Address)
 	_, _, absoluteIndex := cc.cache.Insert(cc.currentTransaction.Address)
 
 	switch cc.currentTransaction.TransactionType {
 	case xact.BusRead:
-		if cc.bus.CheckHasCopy(cc.currentTransaction.Address) {
+		if hasCopy {
 			cc.cacheStates[absoluteIndex] = mesifForward
 		} else {
 			cc.cacheStates[absoluteIndex] = mesifExclusive
