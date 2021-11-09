@@ -1,3 +1,6 @@
+/*
+Package memory implements a Memory struct to simulate a physical memory.
+*/
 package memory
 
 import (

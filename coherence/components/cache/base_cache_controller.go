@@ -1,3 +1,11 @@
+/*
+Package cache implements:
+* a Cache struct to simulate a processor cache
+* a CacheController type struct to simulate a processor cache controller.
+
+CacheController has a base type called BaseCacheController. It is embedded in specialised CacheController type
+developed for simulating a particular cache coherence protocol, e.g. MesiCacheController.
+*/
 package cache
 
 import (
@@ -36,12 +44,15 @@ const (
 )
 
 func NewBaseCache(id int, bus *bus.Bus, blockSize, associativity, cacheSize int) *BaseCacheController {
-	// TODO: Register bus snooping callback here by calling bus.RegisterSnoopingCallBack
-	return &BaseCacheController{
+	baseCacheController := &BaseCacheController{
 		bus:   bus,
 		cache: NewCacheDs(blockSize, associativity, cacheSize),
 		id:    id,
 	}
+
+	bus.RegisterHasCopy(baseCacheController.HasCopy)
+
+	return baseCacheController
 }
 
 func (cc *BaseCacheController) Execute() {
@@ -84,12 +95,16 @@ func (cc *BaseCacheController) OnBusAccessGranted(timestamp time.Time) xact.Tran
 	return cc.currentTransaction
 }
 
-func (cc *BaseCacheController) GetStats() CacheControllerStats {
-	return cc.stats
-}
-
 // MUST call in RequestRead and RequestWrite
 func (cc *BaseCacheController) prepareForRequest(address uint32, callback func()) {
 	cc.onClientRequestComplete = callback
 	cc.requestedAddress = address
+}
+
+func (cc *BaseCacheController) GetStats() CacheControllerStats {
+	return cc.stats
+}
+
+func (cc *BaseCacheController) HasCopy(address uint32) bool {
+	return cc.cache.Contain(address)
 }

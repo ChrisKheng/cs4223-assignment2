@@ -1,3 +1,6 @@
+/*
+Package xact implements a Transaction struct to simulate a Bus transaction.
+*/
 package xact
 
 import "time"
@@ -27,8 +30,5 @@ const (
 
 type ReleaseBus func()
 type OnRequestGrantedCallBack func(timestamp time.Time) Transaction
-type OnRequestCompleteCallBack func(reply ReplyMsg)
-
 type SnoopingCallBack func(transaction Transaction)
-type GatherReplyCallBack func(replyCallback ReplyCallback)
-type ReplyCallback func(transaction Transaction, replyMsg ReplyMsg)
+type HasCopyCallBack func(address uint32) bool

@@ -1,3 +1,6 @@
+/*
+Package testutils implements utility methods for test code.
+*/
 package testutils
 
 import "fmt"

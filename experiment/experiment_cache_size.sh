@@ -11,7 +11,7 @@ then
     exit 1
 fi
 
-output_dir="../experiment/cache_size/${benchmark_name}"
+output_dir="../experiment/${protocol}/cache_size/${benchmark_name}"
 benchmark_dir="../benchmarks/${benchmark_name}_four/${benchmark_name}"
 
 mkdir -p $output_dir

@@ -1,7 +1,7 @@
 /*
-Package dragon implements a DragonSimulator struct to simulate Dragon Cache Coherence Protocol.
+Package mesif implements a MesifSimulator struct to simulate MESIF Cache Coherence Protocol.
 */
-package dragon
+package mesif
 
 import (
 	"github.com/chriskheng/cs4223-assignment2/coherence/components/bus"
@@ -12,19 +12,19 @@ import (
 	"github.com/chriskheng/cs4223-assignment2/coherence/simulator"
 )
 
-type DragonSimulator struct {
+type MesifSimulator struct {
 	*simulator.BaseSimulator
 }
 
-func NewDragonSimulator(inputFilePrefix string, cacheSize int, associativity int, blockSize int) *DragonSimulator {
+func NewMesifSimulator(inputFilePrefix string, cacheSize int, associativity int, blockSize int) *MesifSimulator {
 	cores := []*core.Core{}
 	bus := bus.NewBus()
 	memory := memory.NewMemory(constants.NumCores, bus)
 
 	for i := 0; i < constants.NumCores; i++ {
-		cache := cache.NewDragonCache(i, bus, blockSize, associativity, cacheSize)
+		cache := cache.NewMesifCache(i, bus, blockSize, associativity, cacheSize)
 		cores = append(cores, core.NewCore(i, inputFilePrefix, cache))
 	}
 
-	return &DragonSimulator{BaseSimulator: simulator.NewBaseSimulator(cores, bus, memory)}
+	return &MesifSimulator{BaseSimulator: simulator.NewBaseSimulator(cores, bus, memory)}
 }

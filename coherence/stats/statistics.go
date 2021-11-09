@@ -1,3 +1,6 @@
+/*
+Package stats implements methods for printing formatted program statistics.
+*/
 package stats
 
 import (
@@ -43,6 +46,8 @@ func PrintStatistics(duration time.Duration, stats []Stats, otherStats OtherStat
 		fmt.Printf("Num loads: %d\n", stats[i].NumLoads)
 		fmt.Printf("Num stores: %d\n", stats[i].NumStores)
 		fmt.Printf("Idle cycles: %d\n", stats[i].NumIdleCycles)
+		fmt.Printf("Num cache hits: %d\n", getNumCacheHits(stats[i]))
+		fmt.Printf("Num cache misses: %d\n", stats[i].NumCacheMisses)
 		fmt.Printf("Data cache miss rate: %.3f\n", getCacheMissRate(stats[i]))
 		fmt.Printf("Num accesses to private data: %d\n", stats[i].NumAccessesToPrivateData)
 		fmt.Printf("Num accesses to shared data: %d\n", stats[i].NumAccessesToSharedData)
@@ -54,13 +59,15 @@ func PrintStatisticsCsv(duration time.Duration, stats []Stats, otherStats OtherS
 	fmt.Fprintf(os.Stderr, "%d,%d,%d\n", otherStats.DataTrafficOnBus, otherStats.NumInvalidations, otherStats.NumUpdates)
 
 	for i := range stats {
-		fmt.Fprintf(os.Stderr, "%d,%d,%d,%d,%d,%d,%.3f,%d,%d\n",
+		fmt.Fprintf(os.Stderr, "%d,%d,%d,%d,%d,%d,%d,%d,%.3f,%d,%d\n",
 			i,
 			getExecutionCycles(stats[i]),
 			stats[i].NumComputeCycles,
 			stats[i].NumLoads,
 			stats[i].NumStores,
 			stats[i].NumIdleCycles,
+			getNumCacheHits(stats[i]),
+			stats[i].NumCacheAccesses,
 			getCacheMissRate(stats[i]),
 			stats[i].NumAccessesToPrivateData,
 			stats[i].NumAccessesToSharedData,
@@ -85,4 +92,8 @@ func getExecutionCycles(stats Stats) int {
 
 func getCacheMissRate(stats Stats) float64 {
 	return float64(stats.NumCacheMisses) / float64(stats.NumCacheAccesses)
+}
+
+func getNumCacheHits(stats Stats) int {
+	return stats.NumCacheAccesses - stats.NumCacheMisses
 }

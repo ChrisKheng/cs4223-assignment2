@@ -107,8 +107,8 @@ func (cc *DragonCacheController) handleSnoopWaitForRequestToComplete(transaction
 		return
 	}
 
-	if !cc.cache.isSameTag(transaction.Address, cc.currentTransaction.Address) {
-		panic("tag of address received by cache controller is different than the tag of the requested address while waiting for read to complete")
+	if !cc.cache.isSamePrefix(transaction.Address, cc.currentTransaction.Address) {
+		panic("prefix of address received by cache controller is different than the prefix of the requested address while waiting for read to complete")
 	}
 
 	_, _, absoluteIndex := cc.cache.Insert(cc.currentTransaction.Address)

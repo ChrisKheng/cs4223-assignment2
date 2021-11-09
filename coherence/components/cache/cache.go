@@ -147,6 +147,8 @@ func (cacheDs *Cache) getAbsoluteIndex(address uint32, round int) uint32 {
 	return normalizedIndex + uint32(round)*cacheDs.numSets
 }
 
-func (cacheDs *Cache) isSameTag(address1 uint32, address2 uint32) bool {
-	return cacheDs.GetTag(address1) == cacheDs.GetTag(address2)
+// Prefix is defined as tag + set index
+func (cacheDs *Cache) isSamePrefix(address1 uint32, address2 uint32) bool {
+	return cacheDs.GetTag(address1) == cacheDs.GetTag(address2) &&
+		cacheDs.GetCacheSetIndex(address1) == cacheDs.GetCacheSetIndex(address2)
 }

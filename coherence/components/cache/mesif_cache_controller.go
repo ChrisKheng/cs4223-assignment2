@@ -7,40 +7,43 @@ import (
 	"github.com/chriskheng/cs4223-assignment2/coherence/components/xact"
 )
 
-type MesiCacheController struct {
+type MesifCacheController struct {
 	*BaseCacheController
 	xactToIssueAfterEvictWriteBack xact.Transaction
-	cacheStates                    []mesiCacheState
+	cacheStates                    []mesifCacheState
+	busUpgrGotCancelled            bool
+	addressCancelled               uint32
 }
 
-type mesiCacheState int
+type mesifCacheState int
 
 const (
-	mesiInvalid mesiCacheState = iota // Put Invalid as first state just in case we forgot to initialise the state.
-	mesiModified
-	mesiExclusive
-	mesiShared
+	mesifInvalid mesifCacheState = iota // Put Invalid as first state just in case we forgot to initialise the state.
+	mesifModified
+	mesifExclusive
+	mesifShared
+	mesifForward
 )
 
-func (c mesiCacheState) string() string {
-	return [...]string{"Invalid", "Modified", "Exclusive", "Shared"}[c]
+func (c mesifCacheState) string() string {
+	return [...]string{"Invalid", "Modified", "Exclusive", "Shared", "Forward"}[c]
 }
 
-func NewMesiCache(id int, bus *bus.Bus, blockSize, associativity, cacheSize int) *MesiCacheController {
-	mesiCC := &MesiCacheController{
+func NewMesifCache(id int, bus *bus.Bus, blockSize, associativity, cacheSize int) *MesifCacheController {
+	mesifCC := &MesifCacheController{
 		BaseCacheController: NewBaseCache(id, bus, blockSize, associativity, cacheSize),
 	}
 
-	mesiCC.cacheStates = make([]mesiCacheState, len(mesiCC.cache.cacheArray))
-	for i := range mesiCC.cacheStates {
-		mesiCC.cacheStates[i] = mesiInvalid
+	mesifCC.cacheStates = make([]mesifCacheState, len(mesifCC.cache.cacheArray))
+	for i := range mesifCC.cacheStates {
+		mesifCC.cacheStates[i] = mesifInvalid
 	}
 
-	bus.RegisterSnoopingCallBack(mesiCC.OnSnoop)
-	return mesiCC
+	bus.RegisterSnoopingCallBack(mesifCC.OnSnoop)
+	return mesifCC
 }
 
-func (cc *MesiCacheController) RequestRead(address uint32, callback func()) {
+func (cc *MesifCacheController) RequestRead(address uint32, callback func()) {
 	cc.prepareForRequest(address, callback)
 
 	if cc.cache.Contain(address) {
@@ -56,7 +59,7 @@ func (cc *MesiCacheController) RequestRead(address uint32, callback func()) {
 		}
 
 		isToBeEvicted, evictedAddress, index := cc.cache.GetAddressToBeEvicted(address)
-		if !isToBeEvicted || cc.cacheStates[index] != mesiModified {
+		if !isToBeEvicted || cc.cacheStates[index] != mesifModified {
 			cc.currentTransaction = busReadXact
 		} else {
 			cc.xactToIssueAfterEvictWriteBack = busReadXact
@@ -70,20 +73,21 @@ func (cc *MesiCacheController) RequestRead(address uint32, callback func()) {
 	}
 }
 
-func (cc *MesiCacheController) RequestWrite(address uint32, callback func()) {
+func (cc *MesifCacheController) RequestWrite(address uint32, callback func()) {
 	cc.prepareForRequest(address, callback)
 
 	if cc.cache.Contain(address) {
 		index := cc.cache.GetIndexInArray(address)
 		state := cc.cacheStates[index]
 		switch state {
-		case mesiModified:
+		case mesifModified:
 			cc.state = CacheHit
-		case mesiExclusive:
+		case mesifExclusive:
 			cc.state = CacheHit
-			cc.cacheStates[index] = mesiModified
-		case mesiShared:
+			cc.cacheStates[index] = mesifModified
+		case mesifShared, mesifForward:
 			cc.state = RequestForBus
+			cc.busUpgrGotCancelled = false
 			cc.currentTransaction = xact.Transaction{
 				TransactionType: xact.BusUpgr,
 				Address:         address,
@@ -103,7 +107,7 @@ func (cc *MesiCacheController) RequestWrite(address uint32, callback func()) {
 		}
 
 		isToBeEvicted, evictedAddress, index := cc.cache.GetAddressToBeEvicted(address)
-		if !isToBeEvicted || cc.cacheStates[index] != mesiModified {
+		if !isToBeEvicted || cc.cacheStates[index] != mesifModified {
 			cc.currentTransaction = busReadXXact
 		} else {
 			cc.xactToIssueAfterEvictWriteBack = busReadXXact
@@ -117,7 +121,7 @@ func (cc *MesiCacheController) RequestWrite(address uint32, callback func()) {
 	}
 }
 
-func (cc *MesiCacheController) OnSnoop(transaction xact.Transaction) {
+func (cc *MesifCacheController) OnSnoop(transaction xact.Transaction) {
 	switch cc.state {
 	case WaitForEvictWriteBack:
 		cc.handleSnoopWaitForEvictWriteBack(transaction)
@@ -130,7 +134,7 @@ func (cc *MesiCacheController) OnSnoop(transaction xact.Transaction) {
 	}
 }
 
-func (cc *MesiCacheController) handleSnoopWaitForEvictWriteBack(transaction xact.Transaction) {
+func (cc *MesifCacheController) handleSnoopWaitForEvictWriteBack(transaction xact.Transaction) {
 	if transaction.SenderId == cc.id {
 		return
 	}
@@ -140,6 +144,8 @@ func (cc *MesiCacheController) handleSnoopWaitForEvictWriteBack(transaction xact
 		if transaction.Address != cc.currentTransaction.Address {
 			panic("address evicted for write back is not the same as the address received for memwritedone")
 		}
+
+		cc.cache.Evict(cc.currentTransaction.Address)
 
 		cc.transactionToSendWhenReplying = cc.xactToIssueAfterEvictWriteBack
 		cc.currentTransaction = cc.xactToIssueAfterEvictWriteBack
@@ -152,8 +158,8 @@ func (cc *MesiCacheController) handleSnoopWaitForEvictWriteBack(transaction xact
 	}
 }
 
-func (cc *MesiCacheController) handleSnoopWaitForRequestToComplete(transaction xact.Transaction) {
-	// Handle S -> M state
+func (cc *MesifCacheController) handleSnoopWaitForRequestToComplete(transaction xact.Transaction) {
+	// Handle S/F -> M state
 	if transaction.SenderId == cc.id && transaction.TransactionType == xact.BusUpgr {
 		// Should have the same address (since the message is from the current sender itself (loopback))
 		if transaction.Address != cc.currentTransaction.Address {
@@ -165,7 +171,7 @@ func (cc *MesiCacheController) handleSnoopWaitForRequestToComplete(transaction x
 			panic(fmt.Sprintf("index returned is -1, current iter %d", cc.iter))
 		}
 
-		cc.cacheStates[index] = mesiModified
+		cc.cacheStates[index] = mesifModified
 		return
 	}
 
@@ -176,7 +182,7 @@ func (cc *MesiCacheController) handleSnoopWaitForRequestToComplete(transaction x
 	// only for reply cases
 	if !cc.cache.isSamePrefix(transaction.Address, cc.currentTransaction.Address) {
 		fmt.Printf("iter: %d\n", cc.iter)
-		panic("Prefix of address received by cache controller is different than the prefix of the requested address while waiting for read to complete")
+		panic("tag of address received by cache controller is different than the tag of the requested address while waiting for read to complete")
 	}
 
 	hasCopy := cc.bus.CheckHasCopy(cc.currentTransaction.Address)
@@ -185,9 +191,9 @@ func (cc *MesiCacheController) handleSnoopWaitForRequestToComplete(transaction x
 	switch cc.currentTransaction.TransactionType {
 	case xact.BusRead:
 		if hasCopy {
-			cc.cacheStates[absoluteIndex] = mesiShared
+			cc.cacheStates[absoluteIndex] = mesifForward
 		} else {
-			cc.cacheStates[absoluteIndex] = mesiExclusive
+			cc.cacheStates[absoluteIndex] = mesifExclusive
 		}
 
 		if transaction.TransactionType == xact.Flush {
@@ -202,7 +208,8 @@ func (cc *MesiCacheController) handleSnoopWaitForRequestToComplete(transaction x
 			panic(fmt.Sprintf("transaction of type %d was received when cache controller is waiting for BusRead result", transaction.TransactionType))
 		}
 	case xact.BusReadX:
-		cc.cacheStates[absoluteIndex] = mesiModified
+		cc.cacheStates[absoluteIndex] = mesifModified
+		cc.busUpgrGotCancelled = false
 		if transaction.TransactionType == xact.Flush {
 			cc.state = WaitForWriteBack
 			cc.stats.NumAccessesToPrivateData++
@@ -218,7 +225,7 @@ func (cc *MesiCacheController) handleSnoopWaitForRequestToComplete(transaction x
 }
 
 // write to memory
-func (cc *MesiCacheController) handleSnoopWriteBack(transaction xact.Transaction) {
+func (cc *MesifCacheController) handleSnoopWriteBack(transaction xact.Transaction) {
 	if transaction.TransactionType != xact.MemWriteDone {
 		panic(fmt.Sprintf("transaction of type %d is received when cache controller %d is waiting for writeback, sender id: %d", transaction.TransactionType, cc.id, transaction.SenderId))
 	} else if !cc.cache.isSamePrefix(transaction.Address, cc.currentTransaction.Address) {
@@ -228,7 +235,7 @@ func (cc *MesiCacheController) handleSnoopWriteBack(transaction xact.Transaction
 	cc.state = CacheHit
 }
 
-func (cc *MesiCacheController) handleSnoopOtherCases(transaction xact.Transaction) {
+func (cc *MesifCacheController) handleSnoopOtherCases(transaction xact.Transaction) {
 	if transaction.SenderId == cc.id || !cc.cache.Contain(transaction.Address) {
 		return
 	}
@@ -236,7 +243,7 @@ func (cc *MesiCacheController) handleSnoopOtherCases(transaction xact.Transactio
 	absoluteIndex := cc.cache.GetIndexInArray(transaction.Address)
 
 	switch cc.cacheStates[absoluteIndex] {
-	case mesiModified:
+	case mesifModified:
 		switch transaction.TransactionType {
 		case xact.BusRead, xact.BusReadX:
 			cc.transactionToSendWhenReplying = xact.Transaction{
@@ -247,7 +254,7 @@ func (cc *MesiCacheController) handleSnoopOtherCases(transaction xact.Transactio
 			}
 			cc.needToReply = true
 			if transaction.TransactionType == xact.BusRead {
-				cc.cacheStates[absoluteIndex] = mesiShared
+				cc.cacheStates[absoluteIndex] = mesifShared
 			} else {
 				cc.invalidateCache(transaction.Address, absoluteIndex)
 			}
@@ -264,9 +271,9 @@ func (cc *MesiCacheController) handleSnoopOtherCases(transaction xact.Transactio
 				cc.xactToIssueAfterEvictWriteBack = xact.Transaction{TransactionType: xact.Nil}
 			}
 		default:
-			panic(getPanicMsgMesiCacheState(transaction, mesiModified))
+			panic(getPanicMsgCacheState(transaction, mesifModified))
 		}
-	case mesiExclusive:
+	case mesifExclusive:
 		switch transaction.TransactionType {
 		case xact.BusRead, xact.BusReadX:
 			cc.transactionToSendWhenReplying = xact.Transaction{
@@ -277,37 +284,75 @@ func (cc *MesiCacheController) handleSnoopOtherCases(transaction xact.Transactio
 			}
 			cc.needToReply = true
 			if transaction.TransactionType == xact.BusRead {
-				cc.cacheStates[absoluteIndex] = mesiShared
+				cc.cacheStates[absoluteIndex] = mesifShared
 			} else {
 				cc.invalidateCache(transaction.Address, absoluteIndex)
 			}
 		default:
-			panic(getPanicMsgMesiCacheState(transaction, mesiExclusive))
+			panic(getPanicMsgCacheState(transaction, mesifExclusive))
 		}
-	case mesiShared:
+	case mesifShared:
 		switch transaction.TransactionType {
 		case xact.BusReadX, xact.BusUpgr:
-			needToChangeTransaction := cc.state == WaitForBus && cc.currentTransaction.TransactionType == xact.BusUpgr && cc.cache.isSamePrefix(cc.currentTransaction.Address, transaction.Address)
+			needToChangeTransaction := cc.isUpgradingSamePrefix(transaction.Address)
 			if needToChangeTransaction {
+				cc.busUpgrGotCancelled = true
+				cc.addressCancelled = cc.currentTransaction.Address
 				cc.currentTransaction = xact.Transaction{
 					TransactionType:   xact.BusReadX,
-					Address:           transaction.Address,
+					Address:           cc.currentTransaction.Address,
 					RequestedDataSize: cc.cache.blockSizeInWords,
 					SenderId:          cc.id,
 				}
 			}
 			cc.invalidateCache(transaction.Address, absoluteIndex)
 		case xact.Flush:
-			panic(getPanicMsgMesiCacheState(transaction, mesiShared))
+			panic(getPanicMsgCacheState(transaction, mesifShared))
+		}
+	case mesifForward:
+		switch transaction.TransactionType {
+		case xact.BusRead, xact.BusReadX:
+			cc.transactionToSendWhenReplying = xact.Transaction{
+				TransactionType: xact.FlushOpt,
+				Address:         transaction.Address,
+				SendDataSize:    transaction.RequestedDataSize,
+				SenderId:        cc.id,
+			}
+			cc.needToReply = true
+			if transaction.TransactionType == xact.BusRead {
+				cc.cacheStates[absoluteIndex] = mesifShared
+			}
+		case xact.Flush, xact.MemWriteDone, xact.MemReadDone:
+			panic(getPanicMsgCacheState(transaction, mesifForward))
+		}
+
+		switch transaction.TransactionType {
+		case xact.BusReadX, xact.BusUpgr:
+			needToChangeTransaction := cc.isUpgradingSamePrefix(transaction.Address)
+			if needToChangeTransaction {
+				cc.busUpgrGotCancelled = true
+				cc.addressCancelled = cc.currentTransaction.Address
+				cc.currentTransaction = xact.Transaction{
+					TransactionType:   xact.BusReadX,
+					Address:           cc.currentTransaction.Address,
+					RequestedDataSize: cc.cache.blockSizeInWords,
+					SenderId:          cc.id,
+				}
+			}
+			cc.invalidateCache(transaction.Address, absoluteIndex)
 		}
 	}
 }
 
-func (cc *MesiCacheController) invalidateCache(address uint32, absoluteIndex int) {
-	cc.cacheStates[absoluteIndex] = mesiInvalid
+func (cc *MesifCacheController) invalidateCache(address uint32, absoluteIndex int) {
+	cc.cacheStates[absoluteIndex] = mesifInvalid
 	cc.cache.Evict(address)
 }
 
-func getPanicMsgMesiCacheState(transaction xact.Transaction, state mesiCacheState) string {
+func (cc *MesifCacheController) isUpgradingSamePrefix(address uint32) bool {
+	return cc.state == WaitForBus && cc.currentTransaction.TransactionType == xact.BusUpgr && cc.cache.isSamePrefix(cc.currentTransaction.Address, address)
+}
+
+func getPanicMsgCacheState(transaction xact.Transaction, state mesifCacheState) string {
 	return fmt.Sprintf("xact of type %d is received when cache is in %s state", transaction.TransactionType, state.string())
 }

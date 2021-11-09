@@ -6,6 +6,7 @@ benchmarks.zip
 coherence/coherence
 out.txt
 
-experiment/cache_size
-experiment/associativity
-experiment/block_size
+experiment/MESI
+experiment/Dragon
+experiment/MESIF
+out

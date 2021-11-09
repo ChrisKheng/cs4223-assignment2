@@ -1,3 +1,6 @@
+/*
+Package constants contains program constants.
+*/
 package constants
 
 const NumCores int = 4

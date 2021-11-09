@@ -1,3 +1,6 @@
+/*
+Package core implements a Core structure that simulates a core in a multi-core processor.
+*/
 package core
 
 import (
