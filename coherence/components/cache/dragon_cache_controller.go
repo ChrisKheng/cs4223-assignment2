@@ -53,11 +53,25 @@ func (cc *DragonCacheController) RequestRead(address uint32, callback func()) {
 		cc.requestType = DragonRequestRead
 		cc.stats.NumCacheMisses++
 
-		cc.currentTransaction = xact.Transaction{
+		busReadXact := xact.Transaction{
 			TransactionType:   xact.BusRead,
 			Address:           address,
 			RequestedDataSize: cc.cache.blockSizeInWords,
 			SenderId:          cc.id,
+		}
+
+		isToBeEvicted, evictedAddress, index := cc.cache.GetAddressToBeEvicted(address)
+		if !isToBeEvicted || (cc.cacheStates[index] != DragonModified &&
+			cc.cacheStates[index] != DragonSharedModified) {
+			cc.currentTransaction = busReadXact
+		} else { // to be evicted && DragonModified || DragonSharedModified
+			cc.xactToIssueAfterEvictWriteBack = busReadXact
+			cc.currentTransaction = xact.Transaction{
+				TransactionType: xact.Flush,
+				Address:         evictedAddress,
+				SendDataSize:    cc.cache.blockSizeInWords,
+				SenderId:        cc.id,
+			}
 		}
 	}
 }
@@ -99,12 +113,36 @@ func (cc *DragonCacheController) RequestWrite(address uint32, callback func()) {
 
 func (cc *DragonCacheController) OnSnoop(transaction xact.Transaction) {
 	switch cc.state {
+	case WaitForEvictWriteBack:
+		cc.handleSnoopWaitForEvictWriteBack(transaction)
 	case WaitForRequestToComplete:
 		cc.handleSnoopWaitForRequestToComplete(transaction)
 	case WaitForWriteBack:
 		cc.handleSnoopWriteBack(transaction)
 	default:
 		cc.handleSnoopOtherCases(transaction)
+	}
+}
+
+func (cc *DragonCacheController) handleSnoopWaitForEvictWriteBack(transaction xact.Transaction) {
+	if transaction.SenderId == cc.id {
+		return
+	}
+
+	switch transaction.TransactionType {
+	case xact.MemWriteDone:
+		if transaction.Address != cc.currentTransaction.Address {
+			panic("address evicted for write back is not the same as the address received for memwritedone")
+		}
+
+		cc.transactionToSendWhenReplying = cc.xactToIssueAfterEvictWriteBack
+		cc.currentTransaction = cc.xactToIssueAfterEvictWriteBack
+		cc.xactToIssueAfterEvictWriteBack = xact.Transaction{TransactionType: xact.Nil}
+		cc.needToReply = true
+		cc.state = WaitForRequestToComplete
+	default:
+		panic(fmt.Sprintf("Xact of type %d is received when cache controller is waiting for evict write back",
+			transaction.TransactionType))
 	}
 }
 
