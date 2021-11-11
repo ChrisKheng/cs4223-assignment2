@@ -85,6 +85,7 @@ func (b *Bus) ReleaseBus(timestamp time.Time) {
 	if timestamp != b.busAcquiredTimestamp {
 		panic("given timestamp to ReleaseBus() is not the same as busAcquiredTimestamp")
 	}
+	b.replyToSend = xact.Transaction{TransactionType: xact.Nil}
 	b.state = Ready
 }
 
