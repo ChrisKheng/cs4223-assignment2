@@ -29,6 +29,7 @@ func NewMesiCache(id int, bus *bus.Bus, blockSize, associativity, cacheSize int)
 	mesiCC := &MesiCacheController{
 		BaseCacheController: NewBaseCache(id, bus, blockSize, associativity, cacheSize),
 	}
+	mesiCC.RegisterUpdateAccessStatsCallback(mesiCC.UpdateAccessStats)
 
 	mesiCC.cacheStates = make([]mesiCacheState, len(mesiCC.cache.cacheArray))
 	for i := range mesiCC.cacheStates {
@@ -191,12 +192,8 @@ func (cc *MesiCacheController) handleSnoopWaitForRequestToComplete(transaction x
 
 		if transaction.TransactionType == xact.Flush {
 			cc.state = WaitForWriteBack
-			cc.stats.NumAccessesToPrivateData++
 		} else if transaction.TransactionType == xact.MemReadDone || transaction.TransactionType == xact.FlushOpt {
 			cc.state = CacheHit
-			if transaction.TransactionType == xact.FlushOpt {
-				cc.stats.NumAccessesToSharedData++
-			}
 		} else {
 			panic(fmt.Sprintf("transaction of type %d was received when cache controller is waiting for BusRead result", transaction.TransactionType))
 		}
@@ -204,12 +201,8 @@ func (cc *MesiCacheController) handleSnoopWaitForRequestToComplete(transaction x
 		cc.cacheStates[absoluteIndex] = mesiModified
 		if transaction.TransactionType == xact.Flush {
 			cc.state = WaitForWriteBack
-			cc.stats.NumAccessesToPrivateData++
 		} else if transaction.TransactionType == xact.MemReadDone || transaction.TransactionType == xact.FlushOpt {
 			cc.state = CacheHit
-			if transaction.TransactionType == xact.FlushOpt {
-				cc.stats.NumAccessesToSharedData++
-			}
 		} else {
 			panic(fmt.Sprintf("transaction of type %d was received when cache controller is waiting for BusReadX result", transaction.TransactionType))
 		}
@@ -309,4 +302,16 @@ func (cc *MesiCacheController) invalidateCache(address uint32, absoluteIndex int
 
 func getPanicMsgMesiCacheState(transaction xact.Transaction, state mesiCacheState) string {
 	return fmt.Sprintf("xact of type %d is received when cache is in %s state", transaction.TransactionType, state.string())
+}
+
+func (cc *MesiCacheController) UpdateAccessStats(address uint32) {
+	index := cc.cache.GetIndexInArray(address)
+	switch cc.cacheStates[index] {
+	case mesiExclusive, mesiModified:
+		cc.stats.NumAccessesToPrivateData++
+	case mesiShared:
+		cc.stats.NumAccessesToSharedData++
+	default:
+		panic(fmt.Sprintf("Cache line is in %d state while updating access stats", cc.cacheStates[index]))
+	}
 }

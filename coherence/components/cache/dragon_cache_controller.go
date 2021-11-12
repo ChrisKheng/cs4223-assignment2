@@ -34,6 +34,7 @@ func NewDragonCache(id int, bus *bus.Bus, blockSize, associativity, cacheSize in
 	dragonCC := &DragonCacheController{
 		BaseCacheController: NewBaseCache(id, bus, blockSize, associativity, cacheSize),
 	}
+	dragonCC.RegisterUpdateAccessStatsCallback(dragonCC.UpdateAccessStats)
 
 	dragonCC.cacheStates = make([]DragonCacheState, len(dragonCC.cache.cacheArray))
 	for i := range dragonCC.cacheStates {
@@ -206,11 +207,6 @@ func (cc *DragonCacheController) handleSnoopWaitForRequestToComplete(transaction
 		case xact.Flush:
 			// Sender must be other cache
 			cc.state = WaitForWriteBack
-			if transaction.AdditionalInfo.IsFromDragonModified {
-				cc.stats.NumAccessesToPrivateData++
-			} else {
-				cc.stats.NumAccessesToSharedData++
-			}
 		case xact.MemReadDone:
 			cc.checkIfNeedToSendBusUpd()
 		default:
@@ -258,7 +254,6 @@ func (cc *DragonCacheController) handleSnoopOtherCases(transaction xact.Transact
 		case DragonExclusive, DragonSharedClean:
 			cc.needToReply = false
 			cc.cacheStates[absoluteIndex] = DragonSharedClean
-
 		case DragonSharedModified, DragonModified:
 			cc.transactionToSendWhenReplying = xact.Transaction{
 				TransactionType: xact.Flush,
@@ -266,10 +261,6 @@ func (cc *DragonCacheController) handleSnoopOtherCases(transaction xact.Transact
 				SendDataSize:    transaction.RequestedDataSize,
 				SenderId:        cc.id,
 			}
-			if cc.cacheStates[absoluteIndex] == DragonModified {
-				cc.transactionToSendWhenReplying.AdditionalInfo.IsFromDragonModified = true
-			}
-
 			cc.needToReply = true
 			cc.cacheStates[absoluteIndex] = DragonSharedModified
 		default:
@@ -280,5 +271,17 @@ func (cc *DragonCacheController) handleSnoopOtherCases(transaction xact.Transact
 		case DragonSharedClean, DragonSharedModified:
 			cc.cacheStates[absoluteIndex] = DragonSharedClean
 		}
+	}
+}
+
+func (cc *DragonCacheController) UpdateAccessStats(address uint32) {
+	index := cc.cache.GetIndexInArray(address)
+	switch cc.cacheStates[index] {
+	case DragonExclusive, DragonModified:
+		cc.stats.NumAccessesToPrivateData++
+	case DragonSharedModified, DragonSharedClean:
+		cc.stats.NumAccessesToSharedData++
+	default:
+		panic(fmt.Sprintf("Cache line is in %d state while updating access stats", cc.cacheStates[index]))
 	}
 }

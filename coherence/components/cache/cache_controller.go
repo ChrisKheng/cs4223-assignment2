@@ -9,4 +9,7 @@ type CacheController interface {
 	OnSnoop(transaction xact.Transaction)
 	HasCopy(address uint32) bool
 	GetStats() CacheControllerStats
+	UpdateAccessStats(address uint32)
 }
+
+type UpdateAccessStatsCallback func(address uint32)
