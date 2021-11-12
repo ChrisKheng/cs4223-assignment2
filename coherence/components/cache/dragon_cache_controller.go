@@ -210,7 +210,7 @@ func (cc *DragonCacheController) handleSnoopWaitForRequestToComplete(transaction
 		case xact.MemReadDone:
 			cc.checkIfNeedToSendBusUpd()
 		default:
-			// panic(fmt.Sprintf("transaction of type %s was received when cache controller is waiting for BusRead result", transaction.TransactionType))
+			panic(fmt.Sprintf("transaction of type %d was received when cache controller is waiting for BusRead result", transaction.TransactionType))
 		}
 	}
 }
@@ -270,6 +270,9 @@ func (cc *DragonCacheController) handleSnoopOtherCases(transaction xact.Transact
 		switch cc.cacheStates[absoluteIndex] {
 		case DragonSharedClean, DragonSharedModified:
 			cc.cacheStates[absoluteIndex] = DragonSharedClean
+		default:
+			panic(fmt.Sprintf("busUpd is received when cache line is in %d state",
+				cc.cacheStates[absoluteIndex]))
 		}
 	}
 }
