@@ -69,6 +69,7 @@ func (cc *BaseCacheController) Execute() {
 	}
 
 	cc.iter++
+	cc.cache.currentCycle++
 
 	switch cc.state {
 	case CacheHit:

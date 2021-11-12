@@ -15,6 +15,7 @@ type Cache struct {
 	numSets          uint32
 	blockSizeInWords uint32
 	cacheArray       []CacheLine
+	currentCycle     int64
 }
 
 type CacheLine struct {
@@ -75,7 +76,7 @@ func (cacheDs *Cache) Insert(address uint32) (bool, uint32, int) {
 	cacheDs.cacheArray[index] = CacheLine{
 		tag:       cacheDs.GetTag(address),
 		address:   address,
-		timestamp: 1,
+		timestamp: cacheDs.currentCycle,
 	}
 
 	// This is needed to add some delay between two consecutive accesses, otherwise the test cases may fail some time
@@ -120,7 +121,7 @@ func (cacheDs *Cache) Access(address uint32) bool {
 	if index == -1 {
 		return false
 	}
-	cacheDs.cacheArray[index].timestamp++
+	cacheDs.cacheArray[index].timestamp = cacheDs.currentCycle
 	return true
 }
 
