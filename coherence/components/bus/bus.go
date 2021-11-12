@@ -23,6 +23,7 @@ type Bus struct {
 	replyToSend           xact.Transaction
 	busAcquiredTimestamp  time.Time
 	stats                 BusStats
+	iter                  int
 }
 
 type BusState int
@@ -50,6 +51,7 @@ func NewBus() *Bus {
 }
 
 func (b *Bus) Execute() {
+	b.iter++
 	switch b.state {
 	case Ready:
 		if len(b.onRequestGrantedFuncs) == 0 {
@@ -85,6 +87,7 @@ func (b *Bus) ReleaseBus(timestamp time.Time) {
 	if timestamp != b.busAcquiredTimestamp {
 		panic("given timestamp to ReleaseBus() is not the same as busAcquiredTimestamp")
 	}
+	b.requestBeingProcessed = xact.Transaction{TransactionType: xact.Nil}
 	b.replyToSend = xact.Transaction{TransactionType: xact.Nil}
 	b.state = Ready
 }
@@ -139,5 +142,7 @@ func (b *Bus) recordStats(transaction xact.Transaction) {
 	switch transaction.TransactionType {
 	case xact.BusReadX, xact.BusUpgr:
 		b.stats.NumInvalidations++
+	case xact.BusUpd:
+		b.stats.NumUpdates++
 	}
 }

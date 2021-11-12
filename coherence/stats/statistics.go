@@ -18,7 +18,6 @@ type Stats struct {
 	NumAccessesToSharedData  int
 	NumCacheMisses           int
 	NumCacheAccesses         int
-	NumCacheUpdates          int
 }
 
 type OtherStats struct {
@@ -67,7 +66,7 @@ func PrintStatisticsCsv(duration time.Duration, stats []Stats, otherStats OtherS
 			stats[i].NumStores,
 			stats[i].NumIdleCycles,
 			getNumCacheHits(stats[i]),
-			stats[i].NumCacheAccesses,
+			stats[i].NumCacheMisses,
 			getCacheMissRate(stats[i]),
 			stats[i].NumAccessesToPrivateData,
 			stats[i].NumAccessesToSharedData,

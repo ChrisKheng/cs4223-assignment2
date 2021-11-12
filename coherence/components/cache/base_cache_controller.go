@@ -28,6 +28,7 @@ type BaseCacheController struct {
 	isHoldingBus                   bool
 	id                             int
 	stats                          CacheControllerStats
+	updateAccessStatsCallback      UpdateAccessStatsCallback
 	iter                           int
 	xactToIssueAfterEvictWriteBack xact.Transaction
 }
@@ -56,6 +57,10 @@ func NewBaseCache(id int, bus *bus.Bus, blockSize, associativity, cacheSize int)
 	return baseCacheController
 }
 
+func (cc *BaseCacheController) RegisterUpdateAccessStatsCallback(callback UpdateAccessStatsCallback) {
+	cc.updateAccessStatsCallback = callback
+}
+
 func (cc *BaseCacheController) Execute() {
 	if cc.needToReply {
 		cc.bus.Reply(cc.transactionToSendWhenReplying)
@@ -75,6 +80,7 @@ func (cc *BaseCacheController) Execute() {
 			cc.isHoldingBus = false
 		}
 
+		cc.updateAccessStatsCallback(cc.requestedAddress)
 		cc.currentTransaction = xact.Transaction{TransactionType: xact.Nil}
 		cc.state = Ready
 	case RequestForBus:
