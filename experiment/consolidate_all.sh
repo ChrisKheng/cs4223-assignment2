@@ -1,5 +1,5 @@
 #!/bin/bash
-protocols=(MESI MESIF)
+protocols=(MESI MESIF Dragon)
 dimensions=(associativity block_size cache_size)
 benchmarks=(blackscholes bodytrack fluidanimate)
 
