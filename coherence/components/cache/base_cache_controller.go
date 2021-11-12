@@ -16,19 +16,20 @@ import (
 )
 
 type BaseCacheController struct {
-	bus                           *bus.Bus
-	cache                         Cache
-	state                         CacheControllerState
-	onClientRequestComplete       func()
-	requestedAddress              uint32
-	currentTransaction            xact.Transaction
-	needToReply                   bool
-	transactionToSendWhenReplying xact.Transaction
-	busAcquiredTimestamp          time.Time
-	isHoldingBus                  bool
-	id                            int
-	stats                         CacheControllerStats
-	iter                          int
+	bus                            *bus.Bus
+	cache                          Cache
+	state                          CacheControllerState
+	onClientRequestComplete        func()
+	requestedAddress               uint32
+	currentTransaction             xact.Transaction
+	needToReply                    bool
+	transactionToSendWhenReplying  xact.Transaction
+	busAcquiredTimestamp           time.Time
+	isHoldingBus                   bool
+	id                             int
+	stats                          CacheControllerStats
+	iter                           int
+	xactToIssueAfterEvictWriteBack xact.Transaction
 }
 
 type CacheControllerState int
