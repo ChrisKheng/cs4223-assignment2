@@ -121,7 +121,6 @@ func (core *Core) GetStatistics() stats.Stats {
 		NumAccessesToSharedData:  cacheControllerStats.NumAccessesToSharedData,
 		NumCacheMisses:           cacheControllerStats.NumCacheMisses,
 		NumCacheAccesses:         cacheControllerStats.NumCacheAccesses,
-		NumCacheUpdates:          cacheControllerStats.NumCacheUpdates,
 	}
 }
 

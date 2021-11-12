@@ -279,7 +279,6 @@ func (cc *DragonCacheController) handleSnoopOtherCases(transaction xact.Transact
 		switch cc.cacheStates[absoluteIndex] {
 		case DragonSharedClean, DragonSharedModified:
 			cc.cacheStates[absoluteIndex] = DragonSharedClean
-			cc.stats.NumCacheUpdates++
 		}
 	}
 }
