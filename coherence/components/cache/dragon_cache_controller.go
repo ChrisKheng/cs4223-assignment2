@@ -188,7 +188,6 @@ func (cc *DragonCacheController) handleSnoopWaitForRequestToComplete(transaction
 	switch cc.currentTransaction.TransactionType {
 	case xact.BusRead:
 		if hasCopy {
-			cc.stats.NumAccessesToSharedData++
 			if cc.requestType == DragonRequestRead {
 				cc.cacheStates[absoluteIndex] = DragonSharedClean
 			} else {
@@ -203,13 +202,17 @@ func (cc *DragonCacheController) handleSnoopWaitForRequestToComplete(transaction
 			}
 		}
 
-		// Sender must be other cache
 		switch transaction.TransactionType {
 		case xact.Flush:
+			// Sender must be other cache
 			cc.state = WaitForWriteBack
+			if transaction.AdditionalInfo.IsFromDragonModified {
+				cc.stats.NumAccessesToPrivateData++
+			} else {
+				cc.stats.NumAccessesToSharedData++
+			}
 		case xact.MemReadDone:
-			// TODO: May need to send busUpd here also
-			cc.state = CacheHit
+			cc.checkIfNeedToSendBusUpd()
 		default:
 			// panic(fmt.Sprintf("transaction of type %s was received when cache controller is waiting for BusRead result", transaction.TransactionType))
 		}
@@ -222,7 +225,10 @@ func (cc *DragonCacheController) handleSnoopWriteBack(transaction xact.Transacti
 	} else if !cc.cache.isSamePrefix(transaction.Address, cc.currentTransaction.Address) {
 		panic("tag of address written is not equal to the tag of address requested by cache controller")
 	}
+	cc.checkIfNeedToSendBusUpd()
+}
 
+func (cc *DragonCacheController) checkIfNeedToSendBusUpd() {
 	if cc.needToSendBusUpdAfterWriteBack {
 		cc.state = WaitForRequestToComplete
 		cc.transactionToSendWhenReplying = xact.Transaction{
@@ -260,6 +266,10 @@ func (cc *DragonCacheController) handleSnoopOtherCases(transaction xact.Transact
 				SendDataSize:    transaction.RequestedDataSize,
 				SenderId:        cc.id,
 			}
+			if cc.cacheStates[absoluteIndex] == DragonModified {
+				cc.transactionToSendWhenReplying.AdditionalInfo.IsFromDragonModified = true
+			}
+
 			cc.needToReply = true
 			cc.cacheStates[absoluteIndex] = DragonSharedModified
 		default:

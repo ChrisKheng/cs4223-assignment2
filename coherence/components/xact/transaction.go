@@ -11,6 +11,7 @@ type Transaction struct {
 	RequestedDataSize uint32 // In words
 	SendDataSize      uint32 // Only set this if you want to send a block from a cache to another cache
 	SenderId          int    // MUST specify
+	AdditionalInfo    TransactionAdditionalInfo
 }
 
 type TransactionType int
@@ -27,6 +28,10 @@ const (
 	BusUpd
 	UpdateDone
 )
+
+type TransactionAdditionalInfo struct {
+	IsFromDragonModified bool
+}
 
 type ReleaseBus func()
 type OnRequestGrantedCallBack func(timestamp time.Time) Transaction
