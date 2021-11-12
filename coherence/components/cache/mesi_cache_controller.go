@@ -9,8 +9,7 @@ import (
 
 type MesiCacheController struct {
 	*BaseCacheController
-	xactToIssueAfterEvictWriteBack xact.Transaction
-	cacheStates                    []mesiCacheState
+	cacheStates []mesiCacheState
 }
 
 type mesiCacheState int

@@ -10,6 +10,7 @@ import (
 type DragonCacheController struct {
 	*BaseCacheController
 	cacheStates []DragonCacheState
+	requestType RequestTypes
 }
 
 type DragonCacheState int
@@ -19,6 +20,13 @@ const (
 	DragonExclusive
 	DragonSharedClean
 	DragonSharedModified
+)
+
+type RequestTypes int
+
+const (
+	DragonRequestRead RequestTypes = iota
+	DragonRequestWrite
 )
 
 func NewDragonCache(id int, bus *bus.Bus, blockSize, associativity, cacheSize int) *DragonCacheController {
@@ -42,13 +50,28 @@ func (cc *DragonCacheController) RequestRead(address uint32, callback func()) {
 		cc.state = CacheHit
 	} else {
 		cc.state = RequestForBus
+		cc.requestType = DragonRequestRead
 		cc.stats.NumCacheMisses++
 
-		cc.currentTransaction = xact.Transaction{
+		busReadXact := xact.Transaction{
 			TransactionType:   xact.BusRead,
 			Address:           address,
 			RequestedDataSize: cc.cache.blockSizeInWords,
 			SenderId:          cc.id,
+		}
+
+		isToBeEvicted, evictedAddress, index := cc.cache.GetAddressToBeEvicted(address)
+		if !isToBeEvicted || (cc.cacheStates[index] != DragonModified &&
+			cc.cacheStates[index] != DragonSharedModified) {
+			cc.currentTransaction = busReadXact
+		} else { // to be evicted && DragonModified || DragonSharedModified
+			cc.xactToIssueAfterEvictWriteBack = busReadXact
+			cc.currentTransaction = xact.Transaction{
+				TransactionType: xact.Flush,
+				Address:         evictedAddress,
+				SendDataSize:    cc.cache.blockSizeInWords,
+				SenderId:        cc.id,
+			}
 		}
 	}
 }
@@ -78,6 +101,7 @@ func (cc *DragonCacheController) RequestWrite(address uint32, callback func()) {
 		}
 	} else {
 		cc.state = RequestForBus
+		cc.requestType = DragonRequestRead
 		cc.stats.NumCacheMisses++
 		cc.currentTransaction = xact.Transaction{
 			TransactionType: xact.BusRead,
@@ -89,12 +113,36 @@ func (cc *DragonCacheController) RequestWrite(address uint32, callback func()) {
 
 func (cc *DragonCacheController) OnSnoop(transaction xact.Transaction) {
 	switch cc.state {
+	case WaitForEvictWriteBack:
+		cc.handleSnoopWaitForEvictWriteBack(transaction)
 	case WaitForRequestToComplete:
 		cc.handleSnoopWaitForRequestToComplete(transaction)
 	case WaitForWriteBack:
 		cc.handleSnoopWriteBack(transaction)
 	default:
 		cc.handleSnoopOtherCases(transaction)
+	}
+}
+
+func (cc *DragonCacheController) handleSnoopWaitForEvictWriteBack(transaction xact.Transaction) {
+	if transaction.SenderId == cc.id {
+		return
+	}
+
+	switch transaction.TransactionType {
+	case xact.MemWriteDone:
+		if transaction.Address != cc.currentTransaction.Address {
+			panic("address evicted for write back is not the same as the address received for memwritedone")
+		}
+
+		cc.transactionToSendWhenReplying = cc.xactToIssueAfterEvictWriteBack
+		cc.currentTransaction = cc.xactToIssueAfterEvictWriteBack
+		cc.xactToIssueAfterEvictWriteBack = xact.Transaction{TransactionType: xact.Nil}
+		cc.needToReply = true
+		cc.state = WaitForRequestToComplete
+	default:
+		panic(fmt.Sprintf("Xact of type %d is received when cache controller is waiting for evict write back",
+			transaction.TransactionType))
 	}
 }
 
@@ -111,21 +159,35 @@ func (cc *DragonCacheController) handleSnoopWaitForRequestToComplete(transaction
 		panic("prefix of address received by cache controller is different than the prefix of the requested address while waiting for read to complete")
 	}
 
+	hasCopy := cc.bus.CheckHasCopy(cc.currentTransaction.Address)
 	_, _, absoluteIndex := cc.cache.Insert(cc.currentTransaction.Address)
 
 	switch cc.currentTransaction.TransactionType {
 	case xact.BusRead:
+
+		if hasCopy {
+			if cc.requestType == DragonRequestRead {
+				cc.cacheStates[absoluteIndex] = DragonSharedClean
+			} else {
+				cc.cacheStates[absoluteIndex] = DragonSharedModified
+				// sendUpd
+			}
+		} else {
+			if cc.requestType == DragonRequestRead {
+				cc.cacheStates[absoluteIndex] = DragonExclusive
+			} else {
+				cc.cacheStates[absoluteIndex] = DragonModified
+			}
+		}
+
 		// Sender must be other cache
 		switch transaction.TransactionType {
 		case xact.Flush:
 			cc.state = WaitForWriteBack
-			cc.cacheStates[absoluteIndex] = DragonSharedClean
 			cc.stats.NumAccessesToSharedData++
 		case xact.MemReadDone:
 			cc.state = CacheHit
-			if transaction.TransactionType == xact.MemReadDone {
-				cc.cacheStates[absoluteIndex] = DragonExclusive
-			}
+			cc.cacheStates[absoluteIndex] = DragonExclusive
 
 		default:
 			// panic(fmt.Sprintf("transaction of type %s was received when cache controller is waiting for BusRead result", transaction.TransactionType))
